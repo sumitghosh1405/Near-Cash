@@ -3,6 +3,9 @@
 Live cash-matching web app: phone sign-in, GPS radar, live chat, reports and blocking.
 Zero dependencies (Node 18+).
 
+## Files
+Everything sits in one folder: server.js, package.json, index.html, app.js, live.js, styles.css, sw.js, manifest.webmanifest and the icon PNGs (in an icons folder, or next to the other files if your uploader cannot make folders).
+
 ## Run
     npm start        # http://localhost:3000
 

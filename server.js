@@ -1,7 +1,7 @@
 // Near Cash server: zero dependencies (Node 18+). REST + Server-Sent Events, JSON-file database.
 const http=require('http'),fs=require('fs'),path=require('path'),crypto=require('crypto');
 const PORT=process.env.PORT||3000,DEV=process.env.NODE_ENV!=='production',ADMIN=process.env.ADMIN_KEY||'';
-const PUB=path.join(__dirname,'public'),DBF=path.join(__dirname,'data','db.json');
+const PUB=__dirname,DBF=path.join(__dirname,'data','db.json');
 fs.mkdirSync(path.dirname(DBF),{recursive:true});
 const db={users:{},sessions:{},otps:{},listings:[],threads:[],messages:[],reports:[],blocks:[]};
 try{Object.assign(db,JSON.parse(fs.readFileSync(DBF,'utf8')))}catch{}
@@ -76,17 +76,22 @@ async function api(req,res,p,q){
   if(p==='block'&&m==='POST'){if(!db.users[b.userId])bad('Not found',404);db.blocks.push({by:u.id,who:b.userId});save();return send(res,200,{ok:true})}
   bad('Not found',404)}
 
+const ASSET=/^(index\.html|app\.js|live\.js|styles\.css|sw\.js|manifest\.webmanifest|icons\/[\w-]+\.png)$/;
 const MIME={'.html':'text/html; charset=utf-8','.js':'text/javascript','.css':'text/css','.png':'image/png','.webmanifest':'application/manifest+json','.svg':'image/svg+xml'};
 http.createServer(async(req,res)=>{
   res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');res.setHeader('Permissions-Policy','geolocation=(self)');
   res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'");
   const url=new URL(req.url,'http://x');
   try{
+    if(url.pathname==='/healthz')return send(res,200,{ok:true});
     if(url.pathname==='/api/admin/reports'){if(!ADMIN||req.headers['x-admin-key']!==ADMIN)return send(res,403,{error:'Forbidden'});return send(res,200,db.reports)}
     if(url.pathname.startsWith('/api/'))return await api(req,res,url.pathname.slice(5),url.searchParams);
-    let f=path.normalize(path.join(PUB,url.pathname==='/'?'index.html':decodeURIComponent(url.pathname)));
-    if(!f.startsWith(PUB+path.sep)||!fs.existsSync(f)||fs.statSync(f).isDirectory()){res.writeHead(404);return res.end('Not found')}
+    const rel=url.pathname==='/'?'index.html':url.pathname.slice(1);
+    if(!ASSET.test(rel)){res.writeHead(404);return res.end('Not found')}
+    const f=[path.join(PUB,rel),path.join(PUB,path.basename(rel))].find(x=>fs.existsSync(x)&&fs.statSync(x).isFile());
+    if(!f){res.writeHead(404);return res.end('Not found: '+rel+' is missing from the deployed files')}
     res.writeHead(200,{'Content-Type':MIME[path.extname(f)]||'application/octet-stream','Cache-Control':f.endsWith('sw.js')?'no-cache':'public, max-age=300'});fs.createReadStream(f).pipe(res)
   }catch(e){if(!res.headersSent)send(res,e.c||500,{error:e.c?e.message:'Server error'});if(!e.c)console.error(e)}
-}).listen(PORT,()=>console.log('Near Cash on http://localhost:'+PORT+(DEV?' (dev mode: OTP codes are shown on screen)':'')));
+}).listen(PORT,'0.0.0.0',()=>console.log('Near Cash on http://localhost:'+PORT+(DEV?' (dev mode: OTP codes are shown on screen)':'')));
 setInterval(()=>{const n=Date.now();for(const k in db.sessions)if(db.sessions[k].exp<n)delete db.sessions[k];for(const k in db.otps)if(db.otps[k].exp<n)delete db.otps[k]},600000);
+for(const f of ['index.html','app.js','live.js','styles.css'])if(!fs.existsSync(path.join(PUB,f)))console.error('WARNING: missing '+f+' - upload it to the repository');
