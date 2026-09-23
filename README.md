@@ -34,7 +34,7 @@ This is a functional V1 frontend/demo, not a completed real-money production bac
 
 
 ## App icon set
-- `favicon.svg` — crisp browser favicon.
+- `icons/favicon.png` — browser favicon.
 - `icons/icon-192.png` and `icons/icon-512.png` — installable/PWA icons.
 - `icons/apple-touch-icon.png` — iOS home-screen icon.
 - Additional 48px/96px PNG sizes are included for browser/UI use.
