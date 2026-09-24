@@ -1,6 +1,6 @@
 // Near Cash server: zero dependencies (Node 18+). REST + Server-Sent Events, JSON-file database.
 const http=require('http'),fs=require('fs'),path=require('path'),crypto=require('crypto');
-const PORT=process.env.PORT||3000,DEV=process.env.NODE_ENV!=='production',ADMIN=process.env.ADMIN_KEY||'';
+const PORT=process.env.PORT||3000,CC=process.env.DEFAULT_COUNTRY_CODE||'91',DEV=process.env.NODE_ENV!=='production'||process.env.DEV_OTP==='true',ADMIN=process.env.ADMIN_KEY||'';
 const PUB=__dirname,DBF=path.join(__dirname,'data','db.json');
 fs.mkdirSync(path.dirname(DBF),{recursive:true});
 const db={users:{},sessions:{},otps:{},listings:[],threads:[],messages:[],reports:[],blocks:[]};
@@ -17,7 +17,12 @@ const blocked=(a,b)=>db.blocks.some(x=>(x.by===a&&x.who===b)||(x.by===b&&x.who==
 const pubU=u=>({id:u.id,name:u.name,done:u.done||0});
 const send=(res,c,o)=>{res.writeHead(c,{'Content-Type':'application/json'});res.end(JSON.stringify(o))};
 const readBody=req=>new Promise((y,n)=>{let d='';req.on('data',c=>{d+=c;if(d.length>10000){n(Object.assign(new Error('Request too large'),{c:413}));req.destroy()}});req.on('end',()=>{try{y(d?JSON.parse(d):{})}catch{n(Object.assign(new Error('Invalid JSON'),{c:400}))}})});
-async function sendSms(to,code){const u=process.env.SMS_WEBHOOK_URL;if(!u)bad('SMS provider not configured',501);const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(process.env.SMS_WEBHOOK_TOKEN||'')},body:JSON.stringify({to,message:'Your Near Cash code is '+code})});if(!r.ok)bad('Could not send the code',502)}
+const norm=p=>{p=String(p||'').replace(/[\s-]/g,'');return p[0]==='+'?p:/^\d{10}$/.test(p)?'+'+CC+p:'+'+p};
+async function sendSms(to,code){
+  const sid=process.env.TWILIO_ACCOUNT_SID,tk=process.env.TWILIO_AUTH_TOKEN,from=process.env.TWILIO_FROM;
+  if(sid&&tk&&from){const r=await fetch('https://api.twilio.com/2010-04-01/Accounts/'+sid+'/Messages.json',{method:'POST',headers:{Authorization:'Basic '+Buffer.from(sid+':'+tk).toString('base64'),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({To:to,From:from,Body:'Your Near Cash code is '+code})});
+    if(!r.ok){console.error('Twilio error',r.status,await r.text());bad('Could not send the code',502)}return}
+const u=process.env.SMS_WEBHOOK_URL;if(!u)bad('SMS provider not configured',501);const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(process.env.SMS_WEBHOOK_TOKEN||'')},body:JSON.stringify({to,message:'Your Near Cash code is '+code})});if(!r.ok)bad('Could not send the code',502)}
 const openL=()=>db.listings.filter(l=>l.status==='open'&&l.exp>Date.now());
 const myThread=(u,tid)=>{const t=db.threads.find(x=>x.id===tid);if(!t||(t.a!==u.id&&t.b!==u.id))bad('Not found',404);return t};
 const other=(t,u)=>db.users[t.a===u.id?t.b:t.a];
@@ -26,13 +31,13 @@ async function api(req,res,p,q){
   if(!ok('ip'+req.socket.remoteAddress,400,60000))bad('Too many requests',429);
   const m=req.method,b=m==='POST'?await readBody(req):{},P=p.split('/');
   if(p==='otp'&&m==='POST'){
-    const ph=String(b.phone||'').replace(/[\s-]/g,'');if(!/^\+?\d{10,13}$/.test(ph))bad('Enter a valid phone number');
+    const ph=norm(b.phone);if(!/^\+\d{11,14}$/.test(ph))bad('Enter a valid phone number');
     if(!ok('otp'+ph,3,600000))bad('Too many codes requested. Try again in 10 minutes.',429);
     const code=String(crypto.randomInt(100000,1000000));db.otps[ph]={h:sha(code+ph),exp:Date.now()+300000,tries:0};save();
     if(DEV){console.log('[dev] OTP for',ph,code);return send(res,200,{ok:true,devCode:code})}
     await sendSms(ph,code);return send(res,200,{ok:true})}
   if(p==='verify'&&m==='POST'){
-    const ph=String(b.phone||'').replace(/[\s-]/g,''),o=db.otps[ph];
+    const ph=norm(b.phone),o=db.otps[ph];
     if(!o||o.exp<Date.now())bad('Code expired. Request a new one.');
     if(++o.tries>5){delete db.otps[ph];bad('Too many attempts. Request a new code.',429)}
     if(o.h!==sha(String(b.code)+ph))bad('That code is wrong');

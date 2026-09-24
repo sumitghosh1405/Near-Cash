@@ -13,6 +13,8 @@ Dev mode shows the SMS code on screen. Location works on localhost and on HTTPS 
 
 ## Production settings
 - NODE_ENV=production hides on-screen codes and requires an SMS provider.
+- TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM: sends codes through Twilio. Also DEFAULT_COUNTRY_CODE (default 91) for numbers typed without a +.
+- DEV_OTP=true: shows the code on screen even in production. For testing only; anyone could sign in as any phone number.
 - SMS_WEBHOOK_URL (+ SMS_WEBHOOK_TOKEN): endpoint that receives {to, message} and sends the SMS (MSG91, Twilio, etc. via a small relay).
 - ADMIN_KEY: enables GET /api/admin/reports with header x-admin-key.
 - PORT: listen port. Deploy behind HTTPS (Render, Railway, Fly.io, or a VPS with Caddy/nginx).
