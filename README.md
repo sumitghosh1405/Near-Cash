@@ -1,31 +1,29 @@
-# Near Cash v2
+# Near Cash — Cloudflare Free Deployment
 
-Live cash-matching web app: phone sign-in, GPS radar, live chat, reports and blocking.
-Zero dependencies (Node 18+).
+This version moves the Node/JSON-file backend to Cloudflare Workers + D1 + SQLite-backed Durable Objects while keeping the existing frontend and API paths. It removes the Render Free cold-start page.
 
-## Files
-Everything sits in one folder: server.js, package.json, index.html, app.js, live.js, styles.css, sw.js, manifest.webmanifest and the icon PNGs (in an icons folder, or next to the other files if your uploader cannot make folders).
+## Important
+- The JSON file database is replaced by D1. The ZIP you supplied did not contain a persistent `data/db.json`, so there is no existing database to migrate in this package.
+- Phone OTP still requires your `SMS_WEBHOOK_URL` and optional `SMS_WEBHOOK_TOKEN` secrets.
+- Live updates use a Durable Object (`UserStream`).
+- The frontend files are unchanged from the supplied Near Cash v4 package.
 
-## Run
-    npm start        # http://localhost:3000
+## Deploy
+1. Install Node.js 18+.
+2. Install Wrangler: `npm install`.
+3. Log in: `npx wrangler login`.
+4. Create the database: `npx wrangler d1 create near-cash-db`.
+5. Put the returned database ID into `wrangler.jsonc` in place of `REPLACE_WITH_D1_DATABASE_ID`.
+6. Initialize schema: `npx wrangler d1 execute near-cash-db --remote --file=schema.sql`.
+7. Set secrets:
+   - `npx wrangler secret put SMS_WEBHOOK_URL`
+   - `npx wrangler secret put SMS_WEBHOOK_TOKEN`
+8. Deploy: `npx wrangler deploy`.
 
-Dev mode shows the SMS code on screen. Location works on localhost and on HTTPS only.
+## Local development
+`npx wrangler dev`
 
-## Production settings
-- NODE_ENV=production hides on-screen codes and requires an SMS provider.
-- TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM: sends codes through Twilio. Also DEFAULT_COUNTRY_CODE (default 91) for numbers typed without a +.
-- DEV_OTP=true: shows the code on screen even in production. For testing only; anyone could sign in as any phone number.
-- SMS_WEBHOOK_URL (+ SMS_WEBHOOK_TOKEN): endpoint that receives {to, message} and sends the SMS (MSG91, Twilio, etc. via a small relay).
-- ADMIN_KEY: enables GET /api/admin/reports with header x-admin-key.
-- PORT: listen port. Deploy behind HTTPS (Render, Railway, Fly.io, or a VPS with Caddy/nginx).
+Sign-in codes: add the text variable DEV_OTP=true (Workers > Settings > Variables and Secrets) to show the code on screen while testing. For real texts add secrets TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM (or SMS_WEBHOOK_URL). Remove DEV_OTP before real users arrive; while it is on, anyone can sign in as any phone number.
 
-## Privacy design
-The server stores each user's location rounded to about 110 m. Other users only receive an approximate distance (0.1 km steps) and direction, never coordinates.
-
-## Before real money at scale
-1. Replace data/db.json with PostgreSQL (all data access is in server.js).
-2. Use a real SMS provider and add identity checks.
-3. Add moderation tooling for reports, push notifications and monitoring.
-4. Have an Indian lawyer review the cash-exchange model, terms and privacy policy.
-
-Near Cash does not hold or move money.
+## Google Maps view
+Open config.js, paste your Google Maps JavaScript API key between the quotes, and redeploy. In Google Cloud, restrict the key to your website address. Without a key the Map tab shows a setup note and the radar still works.
