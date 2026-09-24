@@ -2,7 +2,7 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "near-cash",
   "main": "src/index.js",
-  "compatibility_date": "2026-09-24",
+  "compatibility_date": "2026-01-15",
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
