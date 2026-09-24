@@ -65,14 +65,14 @@ async function api(env,req,p,url){
   }
   if(p==="location"&&m==="POST"){
     const la=+b.lat,lo=+b.lng;if(!(Math.abs(la)<=90&&Math.abs(lo)<=180)||b.lat==null)err("Invalid location");
-    await env.DB.prepare("UPDATE users SET lat=?,lng=?,at=? WHERE id=?").bind(+la.toFixed(3),+lo.toFixed(3),Date.now(),u.id).run();return json({ok:true});
+    await env.DB.prepare("UPDATE users SET lat=?,lng=?,at=? WHERE id=?").bind(+la.toFixed(4),+lo.toFixed(4),Date.now(),u.id).run();return json({ok:true});
   }
   if(p==="nearby"){
     const R=Math.min(+url.searchParams.get("r")||3,10), now=Date.now();
     const mine=await env.DB.prepare("SELECT id,type,amount,exp,status FROM listings WHERE uid=? AND status='open' AND exp>? ORDER BY exp").bind(u.id,now).all();
     if(u.lat==null)return json({items:[],mine:mine.results||[]});
     const rows=await env.DB.prepare("SELECT l.*,u.name,u.done,u.lat,u.lng FROM listings l JOIN users u ON u.id=l.uid WHERE l.status='open' AND l.exp>? AND l.uid<>?").bind(now,u.id).all();
-    const items=[]; for(const l of rows.results||[]){if(l.lat==null||await blocked(env,u.id,l.uid))continue;const d=dist(u,l);if(d<=R)items.push({id:l.id,type:l.type,amount:l.amount,mins:Math.ceil((l.exp-now)/60000),km:Math.max(.1,Math.ceil(d*10)/10),brg:Math.round(bearing(u,l)/10)*10,name:l.name,done:l.done||0});}
+    const items=[]; for(const l of rows.results||[]){if(l.lat==null||await blocked(env,u.id,l.uid))continue;const d=dist(u,l);if(d<=R)items.push({id:l.id,type:l.type,amount:l.amount,mins:Math.ceil((l.exp-now)/60000),km:Math.max(.01,Math.round(d*100)/100),brg:Math.round(bearing(u,l)),name:l.name,done:l.done||0});}
     items.sort((a,b)=>a.km-b.km);return json({items,mine:mine.results||[]});
   }
   if(p==="listings"&&m==="POST"){
