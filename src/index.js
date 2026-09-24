@@ -81,7 +81,7 @@ async function api(env,req,p,url){
   const P=p.split('/');
   if(P[0]==="threads"&&P[1]){
     const t=await env.DB.prepare("SELECT * FROM threads WHERE id=? AND (a=? OR b=?)").bind(P[1],u.id,u.id).first();if(!t)err("Not found",404);const oid=t.a===u.id?t.b:t.a;const o=await env.DB.prepare("SELECT id,name,done FROM users WHERE id=?").bind(oid).first();
-    if(!P[2]){const msgs=await env.DB.prepare("SELECT id,tid,from_uid as from,text,at FROM messages WHERE tid=? ORDER BY at DESC LIMIT 200").bind(t.id).all();const confirmed=JSON.parse(t.confirmed||"[]");return json({id:t.id,amount:t.amount,status:t.status,confirmed,other:pubU(o),msgs:(msgs.results||[]).reverse()});}
+    if(!P[2]){const msgs=await env.DB.prepare("SELECT id,tid,from_uid AS \"from\",text,at FROM messages WHERE tid=? ORDER BY at DESC LIMIT 200").bind(t.id).all();const confirmed=JSON.parse(t.confirmed||"[]");return json({id:t.id,amount:t.amount,status:t.status,confirmed,other:pubU(o),msgs:(msgs.results||[]).reverse()});}
     if(P[2]==="messages"&&m==="POST"){
       const text=String(b.text||"").trim().slice(0,500);if(!text)err("Type a message");if(t.status!=="open"||await blocked(env,u.id,oid))err("This chat is closed",409);
       const idm=id(),at=Date.now();await env.DB.prepare("INSERT INTO messages(id,tid,from_uid,text,at) VALUES(?,?,?,?,?)").bind(idm,t.id,u.id,text,at).run();const msg={id:idm,tid:t.id,from:u.id,text,at};await push(env,oid,{t:"msg",threadId:t.id,msg,from:u.name});return json(msg);
@@ -93,7 +93,7 @@ async function api(env,req,p,url){
   }
   if(p==="report"&&m==="POST"){
     const t=await env.DB.prepare("SELECT * FROM threads WHERE id=? AND (a=? OR b=?)").bind(b.threadId,u.id,u.id).first();if(!t)err("Not found",404);const oid=t.a===u.id?t.b:t.a;if(!["scam","harassment","unsafe","other"].includes(b.reason))err("Choose a reason");
-    const last=await env.DB.prepare("SELECT id,tid,from_uid as from,text,at FROM messages WHERE tid=? ORDER BY at DESC LIMIT 20").bind(t.id).all();await env.DB.batch([env.DB.prepare("INSERT INTO reports(id,by_uid,who_uid,tid,reason,at,last_json) VALUES(?,?,?,?,?,?,?)").bind(id(),u.id,oid,t.id,b.reason,Date.now(),JSON.stringify((last.results||[]).reverse())),env.DB.prepare("INSERT OR IGNORE INTO blocks(by_uid,who_uid) VALUES(?,?)").bind(u.id,oid),env.DB.prepare("UPDATE threads SET status='closed' WHERE id=? AND status='open'").bind(t.id)]);await push(env,oid,{t:"thread"});return json({ok:true});
+    const last=await env.DB.prepare("SELECT id,tid,from_uid AS \"from\",text,at FROM messages WHERE tid=? ORDER BY at DESC LIMIT 20").bind(t.id).all();await env.DB.batch([env.DB.prepare("INSERT INTO reports(id,by_uid,who_uid,tid,reason,at,last_json) VALUES(?,?,?,?,?,?,?)").bind(id(),u.id,oid,t.id,b.reason,Date.now(),JSON.stringify((last.results||[]).reverse())),env.DB.prepare("INSERT OR IGNORE INTO blocks(by_uid,who_uid) VALUES(?,?)").bind(u.id,oid),env.DB.prepare("UPDATE threads SET status='closed' WHERE id=? AND status='open'").bind(t.id)]);await push(env,oid,{t:"thread"});return json({ok:true});
   }
   if(p==="block"&&m==="POST"){if(!await env.DB.prepare("SELECT id FROM users WHERE id=?").bind(b.userId).first())err("Not found",404);await env.DB.prepare("INSERT OR IGNORE INTO blocks(by_uid,who_uid) VALUES(?,?)").bind(u.id,b.userId).run();return json({ok:true});}
   err("Not found",404);
@@ -116,4 +116,4 @@ export class UserStream extends DurableObject {
     return new Response("Not found",{status:404});
   }
 }
-export default {async fetch(req,env){const url=new URL(req.url);if(url.pathname==="/healthz")return json({ok:true});if(url.pathname.startsWith("/api/")){try{return await api(env,req,url.pathname.slice(5),url);}catch(e){return json({error:e.status?e.message:"Server error"},e.status||500);}}return env.ASSETS.fetch(req);}};
+export default {async fetch(req,env){const url=new URL(req.url);if(url.pathname==="/healthz")return json({ok:true});if(url.pathname.startsWith("/api/")){try{return await api(env,req,url.pathname.slice(5),url);}catch(e){if(!e.status)console.error("Worker error:",e&&e.stack||e);return json({error:e.status?e.message:(env.DEV_OTP==="true"?"Server error: "+(e&&e.message):"Server error")},e.status||500);}}return env.ASSETS.fetch(req);}};
