@@ -71,3 +71,14 @@ CREATE TABLE IF NOT EXISTS blocks (
   who_uid TEXT NOT NULL,
   PRIMARY KEY(by_uid, who_uid)
 );
+CREATE TABLE IF NOT EXISTS notifications (
+  id TEXT PRIMARY KEY,
+  uid TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  text TEXT NOT NULL,
+  ref TEXT,
+  at INTEGER NOT NULL,
+  read INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY(uid) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_uid ON notifications(uid, at);
