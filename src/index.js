@@ -187,7 +187,7 @@ async function api(env,req,p,url){
       items.push({id:l.id,type:l.type,amount:l.amount,mins:Math.max(1,Math.ceil((l.exp-now)/60000)),km:Math.max(.01,Math.round(km*100)/100),brg:Math.round(bearing(u,l)),name:l.name,done:l.done||0,match:score,locationAgeSec:Math.max(0,Math.round((now-l.at)/1000)),matchLabel:score>=80?'Strong match':score>=60?'Good match':'Nearby match',trust:tr.label,verified:tr.verified,activeAgeSec:Math.max(0,Math.round((now-l.created)/1000))});
     }
     items.sort((a,b)=>b.match-a.match||a.km-b.km||b.done-a.done);
-    return json({items,mine,meta:{radius:R,location:true,staleAfterSec:120,candidateCells:cells.length,privacy:'exact coordinates are never returned'}});
+    return json({items,mine:own,meta:{radius:R,location:true,staleAfterSec:120,candidateCells:cells.length,privacy:'exact coordinates are never returned'}});
   }
   if(p==="listings"&&m==="POST"){
     if(u.lat==null)err("Turn on location first");const amt=Math.floor(+b.amount),mins=Math.floor(+b.minutes);if(!["have","need"].includes(b.type)||!(amt>=1&&amt<=5000)||!(mins>=5&&mins<=240))err("Invalid post");
