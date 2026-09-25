@@ -58,3 +58,13 @@ External GPS, browser permissions, Cloudflare, OpenStreetMap and OSRM services r
 - Participant location is approximate and refreshed while current; stale locations are hidden.
 - Exchange chat includes the Live Map entry point for that specific exchange.
 - Match scoring weights are not shown to users; the radar uses short labels such as Strong match, Good match, or Nearby match.
+
+
+## V17 live-network fixes
+- Added a separate **Live Posts** view for active Cash Offers and Cash Requests, including the user's own live posts.
+- Dashboard, radar, and Live Posts now refresh from the server every 7 seconds and also react to live SSE listing events.
+- Expanded event notifications for posting, matching, messages, exchange state changes/completion, settings changes, and location activation.
+- Nearby-match notifications now open the Live Posts view.
+- GPS continuously watches the user's position after permission is granted; the last recent GPS fix is restored automatically so maps do not require manual coordinate entry or a refresh.
+- Live Map stores the last recent GPS fix locally and starts centered there while the browser reacquires live GPS.
+- No manual latitude/longitude input is required.
