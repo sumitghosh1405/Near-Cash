@@ -14,12 +14,13 @@ async function saveProfile(){const n=(document.getElementById('pname')?.value||'
 function authHtml(){const p=S.step==='phone';return `<div class="auth"><div class="card auth-card"><img onerror="this.style.visibility='hidden'" class="logo" style="width:56px;height:56px" src="${LOGO}" alt="Near Cash logo"><h1>${p?'Sign in to Near Cash':'Enter your code'}</h1><p>${p?'We text a one-time code to verify your phone.':'Sent to '+esc(S.phone)+'.'}</p>${p?`<label>Your name</label><div class="field"><input id="an" value="${esc(S.name)}" maxlength="40"></div><label>Phone number</label><div class="field"><input id="ap" inputmode="tel" value="${esc(S.phone)}" placeholder="+91 98765 43210"></div><label class="chk"><input type="checkbox" id="aa"> I am 18 or older and will only meet in public places.</label><button class="primary full" onclick="sendOtp()">Send code</button>`:`<label>6-digit code</label><div class="field"><input id="ac" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></div>${S.dev?`<p class="dev">Dev mode code: <b>${S.dev}</b></p>`:''}<button class="primary full" onclick="verifyOtp()">Verify and continue</button><button class="text" onclick="S.step='phone';S.err='';render()">Change number</button>`}${S.err?`<div class="err">${esc(S.err)}</div>`:''}</div></div>`}
 async function sendOtp(){S.name=document.getElementById('an').value.trim();S.phone=document.getElementById('ap').value.trim();const ad=document.getElementById('aa').checked;if(!S.name)return authErr('Enter your name.');if(!ad)return authErr('Confirm that you are 18 or older.');try{const j=await api('otp',{phone:S.phone});S.dev=j.devCode||'';S.step='code';S.err='';render()}catch(e){authErr(e.message)}}
 async function verifyOtp(){try{const j=await api('verify',{phone:S.phone,code:document.getElementById('ac').value.trim(),name:S.name,adult:true});S.token=j.token;S.me=j.me;try{localStorage.setItem('nc_token',j.token)}catch{}S.err='';boot()}catch(e){S.err=e.message;render()}}
-function boot(){state.profile.name=S.me.name;state.screen='home';connect();startGeo();refresh()}
+function boot(){state.profile.name=S.me.name;state.screen='home';restoreLastGeo();connect();startGeo();refresh()}
 function setRadius(k){S.radius=k;render();refresh()}
 async function refresh(){try{const[n,t,nf,pref]=await Promise.all([api('nearby?r='+S.radius),api('threads'),api('notifications'),api('notifications/preferences')]);S.items=Array.isArray(n.items)?n.items:[];S.mine=Array.isArray(n.mine)?n.mine:[];S.threads=t.items||[];S.prefs=pref;gotNotifs(nf);S.lastRefresh=Date.now();state.offers=[...S.items.filter(x=>x.type==='have'),...S.mine.filter(x=>x.type==='have')].map(x=>({id:x.id,status:'open',expires:Date.now()+Math.max(1,x.mins||Math.ceil((x.exp-Date.now())/60000)||1)*60000}));state.requests=[...S.items.filter(x=>x.type==='need'),...S.mine.filter(x=>x.type==='need')].map(x=>({id:x.id,status:'open',expires:Date.now()+Math.max(1,x.mins||Math.ceil((x.exp-Date.now())/60000)||1)*60000}));state.tx=S.threads;
-  if(['home','find','notifications'].includes(state.screen)||(state.screen==='activity'&&!S.thread))render()}catch(e){if(e?.status!==429)console.warn('refresh',e)}}
-function connect(){S.es&&S.es.close();S.es=new EventSource('/api/stream?token='+S.token);S.es.onmessage=e=>{const j=JSON.parse(e.data);if(j.t==='msg'){if(S.thread===j.threadId){S.msgs.push(j.msg);render();scrollChat()}else toast('New message from '+j.from);refresh()}else refresh()}}
-function startGeo(){if(S.geo==='requesting'||S.geo==='ok')return;if(!navigator.geolocation){S.geo='off';resolveGeoWaiters();return}S.geo='requesting';navigator.geolocation.watchPosition(p=>{const first=!S.loc;S.loc={lat:p.coords.latitude,lng:p.coords.longitude};S.acc=p.coords.accuracy;S.geo='ok';resolveGeoWaiters();if(first||Date.now()-S.lastPost>15000){S.lastPost=Date.now();api('location',S.loc).then(()=>first&&refresh()).catch(()=>{})}},()=>{S.geo='off';resolveGeoWaiters();render()},{enableHighAccuracy:true,maximumAge:5000,timeout:15000})}
+  if(['home','find','liveposts','notifications'].includes(state.screen)||(state.screen==='activity'&&!S.thread))render()}catch(e){if(e?.status!==429)console.warn('refresh',e)}}
+function connect(){S.es&&S.es.close();S.es=new EventSource('/api/stream?token='+S.token);S.es.onmessage=e=>{try{const j=JSON.parse(e.data);if(j.t==='msg'){if(S.thread===j.threadId){S.msgs.push(j.msg);render();scrollChat()}else{toast('New message from '+j.from);refresh()}}else{refresh()}}catch(err){console.warn('stream event',err)}}}
+function restoreLastGeo(){if(S.loc)return;try{const x=JSON.parse(localStorage.getItem('nc_last_gps')||'null');if(x&&Number.isFinite(x.lat)&&Number.isFinite(x.lng)&&Date.now()-Number(x.at||0)<86400000){S.loc={lat:x.lat,lng:x.lng};S.acc=x.accuracy||null;S.geo='ok';return true}}catch{}return false}
+function startGeo(){if(S.geo==='requesting'||S.geo==='ok')return;if(!navigator.geolocation){S.geo='off';resolveGeoWaiters();return}S.geo='requesting';navigator.geolocation.watchPosition(p=>{const first=!S.loc;S.loc={lat:p.coords.latitude,lng:p.coords.longitude};S.acc=p.coords.accuracy;S.geo='ok';try{localStorage.setItem('nc_last_gps',JSON.stringify({lat:S.loc.lat,lng:S.loc.lng,accuracy:S.acc,at:Date.now()}))}catch{}resolveGeoWaiters();if(first||Date.now()-S.lastPost>10000){S.lastPost=Date.now();api('location',{...S.loc,accuracy:S.acc}).then(()=>refresh()).catch(()=>{})}},e=>{S.geo='off';resolveGeoWaiters();if(e&&e.code===1)toast('Location permission is required for live nearby matching.');render();setTimeout(()=>{if(S.token&&!document.hidden)startGeo()},2500)},{enableHighAccuracy:true,maximumAge:3000,timeout:12000})}
 const geoMsg=()=>{if(S.geo==='off')return 'Location is off. Showing recent active listings without revealing locations.';if(S.geo==='ok'){const a=S.acc?`GPS ±${Math.max(1,Math.round(S.acc))} m`:'GPS active';return `${a} · directions are geographic bearings from your location.`}return 'Finding your location…'};
 const dir8=b=>['N','NE','E','SE','S','SW','W','NW'][Math.round(((Number(b)||0)%360)/45)%8];
 const dir16=b=>['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'][Math.round(((Number(b)||0)%360)/22.5)%16];
@@ -74,7 +75,7 @@ function notifs(){return `<div class="notifs"><div class="page-head"><div><div c
 <div class="opts"><button class="${S.prefs.want_have?'sel':''}" onclick="savePrefs({want_have:!S.prefs.want_have})">Cash available</button><button class="${S.prefs.want_need?'sel':''}" onclick="savePrefs({want_need:!S.prefs.want_need})">Cash needed</button></div></div>
 ${S.notifs.length?`<div class="nlist">${S.notifs.map(x=>`<div class="nitem ${x.read?'':'unread'}" onclick="openNotif('${x.id}')"><div class="nic">${svg(NIC[x.kind]||NIC.account)}</div><div><div class="ntext">${esc(x.text)}</div><div class="ntime">${ago(x.at)}</div></div></div>`).join('')}</div>`:empty('No notifications yet.')}</div>`}
 async function savePrefs(p){try{const next={...S.prefs,...p};const enabled=document.getElementById('np-enabled');if(enabled)next.enabled=enabled.checked;await api('notifications/preferences',next);S.prefs=next;render();toast('Notification preferences saved.')}catch(e){fail(e)}}
-function openNotif(i){const x=S.notifs.find(n=>n.id===i);if(!x)return;if(x.ref&&['connect','message','exchange','safety'].includes(x.kind)&&S.threads.some(t=>t.id===x.ref))openThread(x.ref);else if(x.kind==='post')go('find')}
+function openNotif(i){const x=S.notifs.find(n=>n.id===i);if(!x)return;if(x.ref&&['connect','message','exchange','safety'].includes(x.kind)&&S.threads.some(t=>t.id===x.ref))openThread(x.ref);else if(x.kind==='post'||x.kind==='nearby_match')go('liveposts');}
 /* ---- global search ---- */
 const PAGES=[['Home','Dashboard and overview','home dashboard overview start main','home'],['Find cash','Live radar of nearby cash','find radar nearby map cash near me distance km location provider receiver','find'],['I need cash','Post a cash request','need cash request withdraw atm borrow receiver new post','need'],['I have cash','Offer cash to people nearby','have cash offer give provide lend provider new post','have'],['Activity','Your exchanges and chats','activity exchange exchanges chat chats messages history connect connected deal transaction','activity'],['Notifications','Account and exchange alerts','notification notifications alerts updates bell unread','notifications'],['Safety & rules','Meeting tips, reporting and blocking','safety safe rules report block scam harassment public place trust help','safety'],['Profile','Your name and guest account','profile account name guest user settings rename logout reset','profile']];
 function gsResults(q){const w=q.toLowerCase().split(/\s+/).filter(Boolean);if(!w.length)return[];const has=h=>w.every(x=>h.toLowerCase().includes(x)),out=[];
@@ -100,11 +101,71 @@ function liveHome(){
 }
 home=liveHome;
 
+// V17 live-posts/dashboard layer: server-backed posts are the single source of truth.
+const livePostsHtml=()=>{
+  const now=Date.now();
+  const all=[...S.items.map(x=>({...x,own:false})),...S.mine.map(x=>({...x,own:true}))];
+  const active=all.filter(x=>!x.exp||x.exp>now);
+  const q=(state.search||'').trim().toLowerCase();
+  const filtered=q?active.filter(x=>String(x.amount).includes(q)||String(x.name||'').toLowerCase().includes(q)||x.type.includes(q)):active;
+  const offers=filtered.filter(x=>x.type==='have');
+  const requests=filtered.filter(x=>x.type==='need');
+  const card=x=>`<article class="match card ${x.own?'own-post':''}" id="lp-${x.id}">
+    <div class="person ${x.type==='need'?'blue':''}">${x.type==='have'?'+':'₹'}</div>
+    <div class="match-main"><b>${money(x.amount)}${x.type==='need'?' needed':''}</b>
+      <span class="badge">${x.own?'YOUR POST':(x.type==='have'?'CASH AVAILABLE':'CASH REQUEST')}</span>
+      <p>${x.own?'You · ':esc(x.name||'Nearby user')}${x.km!=null?(x.km<1?Math.round(x.km*1000)+' m':x.km.toFixed(2)+' km'):'Nearby'} · ${x.mins||Math.max(1,Math.ceil((x.exp-now)/60000))} min left</p>
+      <div class="rel">${esc(x.matchLabel||'Live post')} · ${x.done||0} completed${x.brg!=null?' · '+bearingText(x.brg):''}</div>
+    </div>
+    ${x.own?`<button class="secondary small" onclick="cancelPost('${x.id}')">Cancel</button>`:`<button class="primary small" onclick="openDeal('${x.id}')">${x.type==='have'?'Request':'Offer cash'}</button>`}
+  </article>`;
+  return `<div class="live-posts-page">
+    <div class="page-head"><div><div class="eyebrow">LIVE NETWORK</div><h1>Live Posts</h1>
+      <p>Continuously updated cash offers and cash requests. Your posts are shown separately and remain visible until they expire or are cancelled.</p>
+    </div><div class="radar-actions"><button class="secondary" onclick="refresh()">↻ Sync now</button><button class="secondary" onclick="go('find')">◉ Radar</button></div></div>
+    <div class="radar-summary"><span><b>${active.length}</b> live posts</span><span><b>${offers.length}</b> cash offers</span><span><b>${requests.length}</b> cash requests</span><span>${S.geo==='ok'?'GPS active':'Getting location…'}</span></div>
+    <div class="match-grid"><section><div class="label">Cash Offers <span>${offers.length}</span></div>${offers.length?offers.map(card).join(''):empty('No live cash offers nearby.')}</section>
+    <section><div class="label">Cash Requests <span>${requests.length}</span></div>${requests.length?requests.map(card).join(''):empty('No live cash requests nearby.')}</section></div>
+  </div>`;
+};
+
+const baseNav=nav;
+bottom=function(){return `<nav class="mobile-nav">${navbtn('home','Home')}${navbtn('find','Radar')}${navbtn('liveposts','Live Posts')}${navbtn('activity','Activity')}${navbtn('notifications','Alerts')}</nav>`};
+nav=function(){
+  return `<aside class="side"><div class="brand" onclick="go('home')"><img class="logo" src="${LOGO}" alt="Near Cash logo"><div><b>Near</b><span>Cash</span></div></div>
+  <div class="nav">${navbtn('home','Home')} ${navbtn('find','Cash Radar')} ${navbtn('liveposts','Live Posts')} ${navbtn('activity','Activity')} ${navbtn('notifications','Notifications')} ${navbtn('safety','Safety')}</div>
+  <div class="side-note"><b>✓ Direct exchange by design</b><span>Near Cash does not hold your money or process payments.</span></div>
+  <button class="mini" onclick="go('profile')"><div class="avatar">${esc(state.profile.name[0]||'A')}</div><div><b>${esc(state.profile.name)}</b><span>${S.guest?'Guest account':'Account'}</span></div>⋯</button></aside>`;
+};
+const oldPAGES=typeof PAGES!=='undefined'?PAGES:[];
+PAGES=[
+ ['Home','Dashboard and overview','home dashboard overview start main','home'],
+ ['Cash Radar','Live radar of nearby cash','find radar nearby map cash near me distance km location provider receiver','find'],
+ ['Live Posts','All active cash offers and cash requests','live posts offers requests available needed active feed','liveposts'],
+ ['I need cash','Post a cash request','need cash request withdraw atm borrow receiver new post','need'],
+ ['I have cash','Offer cash to people nearby','have cash offer give provide lend provider new post','have'],
+ ['Activity','Your exchanges and chats','activity exchange exchanges chat chats messages history connect connected deal transaction','activity'],
+ ['Notifications','Account and exchange alerts','notification notifications alerts updates bell unread','notifications'],
+ ['Safety & rules','Meeting tips, reporting and blocking','safety safe rules report block scam harassment public place trust help','safety'],
+ ['Profile','Your name and guest account','profile account name guest user settings rename logout reset','profile']
+];
+
+const oldGo=go;
+go=function(s){S.thread=null;S.report=false;S.exchangePin='';oldGo(s)};
+const oldRender=render;
+render=function(){
+  oldRender();
+  if(S.token && state.screen==='liveposts'){
+    const body=document.querySelector('.content'); if(body) body.innerHTML=livePostsHtml();
+  }
+};
+
+
 const baseRender=render,baseGo=go,baseProfile=profile;
 go=function(s){S.thread=null;S.report=false;S.exchangePin='';baseGo(s)};
 profile=function(){return baseProfile().replace(/<\/div>$/,'<button class="secondary full" style="margin-top:12px" onclick="logout()">'+(S.guest?'Start over as a new guest':'Log out')+'</button></div>')};
 render=function(){const m=document.getElementById('msg');if(m)S.draft=m.value;const gsf=document.activeElement&&document.activeElement.id==='gs';if(!S.token){A.innerHTML=S.booting?splash():authHtml();return}baseRender();if(gsf){const gi=document.getElementById('gs');if(gi){gi.focus();gi.setSelectionRange(gi.value.length,gi.value.length);gsearch(gi.value)}}if(state.screen==='notifications'&&state.unread!==0&&S.notifs.some(n=>!n.read))markRead();if(state.screen==='find'){startRadar()}if(S.thread&&S.draft&&document.getElementById('msg'))document.getElementById('msg').value=S.draft};
 try{S.guest=localStorage.getItem('nc_guest')==='1'}catch{}
 if(S.token)api('me').then(j=>{S.me=j;boot()}).catch(()=>{});else autoGuest();
-setInterval(()=>{if(S.token&&S.me&&!document.hidden)refresh()},20000);
+setInterval(()=>{if(S.token&&S.me&&!document.hidden)refresh()},7000);
 render();
