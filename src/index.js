@@ -173,7 +173,7 @@ async function api(env,req,p,url){
     const mine=await env.DB.prepare("SELECT id,type,amount,exp,status,created FROM listings WHERE uid=? AND status='open' AND exp>? ORDER BY exp").bind(u.id,now).all();
     if(u.lat==null){
       const recent=await env.DB.prepare("SELECT l.id,l.type,l.amount,l.exp,l.created,u.name,u.phone,u.done,u.created AS user_created,u.at FROM listings l JOIN users u ON u.id=l.uid WHERE l.status='open' AND l.exp>? AND l.uid<>? AND u.at>? ORDER BY l.created DESC LIMIT 20").bind(now,u.id,now-3600000).all();
-      const items=(recent.results||[]).map(l=>{const tr=trustFor({phone:l.phone,done:l.done,created:l.user_created,at:l.at},now);return {id:l.id,type:l.type,amount:l.amount,mins:Math.max(1,Math.ceil((l.exp-now)/60000)),name:l.name,done:l.done||0,match:null,trust:tr.label,verified:tr.verified,locationAgeSec:Math.max(0,Math.round((now-l.at)/1000))}});
+      const items=(recent.results||[]).map(l=>{const tr=trustFor({phone:l.phone,done:l.done,created:l.user_created,at:l.at},now);return {id:l.id,type:l.type,amount:l.amount,mins:Math.max(1,Math.ceil((l.exp-now)/60000)),name:l.name,done:l.done||0,matchLabel:'Nearby match',trust:tr.label,verified:tr.verified,locationAgeSec:Math.max(0,Math.round((now-l.at)/1000))}});
       return json({items,mine:mine.results||[],meta:{radius:R,location:false,privacy:'approximate-only',fallback:'recent-active-list'}});
     }
     const cells=nearbyCells(+u.lat,+u.lng,R), marks=cells.map(()=>'?').join(',');
@@ -184,7 +184,7 @@ async function api(env,req,p,url){
       const km=dist(u,l); if(km>R)continue;
       const tr=trustFor({phone:l.phone,done:l.done,created:l.user_created,at:l.at},now);
       const score=matchScore(u,{type:l.type,amount:l.amount,exp:l.exp,created:l.created},km,R,own,now);
-      items.push({id:l.id,type:l.type,amount:l.amount,mins:Math.max(1,Math.ceil((l.exp-now)/60000)),km:Math.max(.01,Math.round(km*100)/100),brg:Math.round(bearing(u,l)),name:l.name,done:l.done||0,locationAgeSec:Math.max(0,Math.round((now-l.at)/1000)),match:score,trust:tr.label,verified:tr.verified,activeAgeSec:Math.max(0,Math.round((now-l.created)/1000))});
+      items.push({id:l.id,type:l.type,amount:l.amount,mins:Math.max(1,Math.ceil((l.exp-now)/60000)),km:Math.max(.01,Math.round(km*100)/100),brg:Math.round(bearing(u,l)),name:l.name,done:l.done||0,match:score,locationAgeSec:Math.max(0,Math.round((now-l.at)/1000)),matchLabel:score>=80?'Strong match':score>=60?'Good match':'Nearby match',trust:tr.label,verified:tr.verified,activeAgeSec:Math.max(0,Math.round((now-l.created)/1000))});
     }
     items.sort((a,b)=>b.match-a.match||a.km-b.km||b.done-a.done);
     return json({items,mine,meta:{radius:R,location:true,staleAfterSec:120,candidateCells:cells.length,privacy:'exact coordinates are never returned'}});
@@ -215,6 +215,16 @@ async function api(env,req,p,url){
   if(P[0]==="threads"&&P[1]){
     const t=await env.DB.prepare("SELECT * FROM threads WHERE id=? AND (a=? OR b=?)").bind(P[1],u.id,u.id).first();if(!t)err("Not found",404);const oid=t.a===u.id?t.b:t.a;const o=await env.DB.prepare("SELECT id,name,done FROM users WHERE id=?").bind(oid).first();
     if(!P[2]){const msgs=await env.DB.prepare("SELECT id,tid,from_uid AS \"from\",text,at FROM messages WHERE tid=? ORDER BY at DESC LIMIT 200").bind(t.id).all();const confirmed=JSON.parse(t.confirmed||"[]");const owner=providerId(t),isOwner=owner===u.id;return json({id:t.id,amount:t.amount,status:t.status,confirmed,other:pubU(o),msgs:(msgs.results||[]).reverse(),pin:{active:['meetup','both_confirmed'].includes(t.status)&&t.status!=='completed'&&!!t.pin_hash,verified:!!t.pin_verified,verifiedBy:t.pin_verified_by||null,canGenerate:isOwner&&t.status==='meetup'&&!t.pin_verified,canVerify:!isOwner&&t.status==='meetup'&&!t.pin_verified,owner:isOwner,pin:null}});}
+    if(P[2]==="location"&&m==="GET"){
+      if(!['matched','chatting','meetup','both_confirmed'].includes(t.status)||t.status==='completed')err("Live location is available only for an active accepted exchange",409);
+      if(await blocked(env,u.id,oid))err("Live location is unavailable for this exchange",403);
+      const other=await env.DB.prepare("SELECT id,name,lat,lng,at FROM users WHERE id=? LIMIT 1").bind(oid).first();
+      if(!other||other.lat==null||other.lng==null||!other.at)return json({shared:false,status:t.status});
+      const age=Math.max(0,Date.now()-Number(other.at));
+      if(age>120000)return json({shared:false,status:t.status,staleAfterSec:120});
+      const lat=Number(Number(other.lat).toFixed(3)),lng=Number(Number(other.lng).toFixed(3));
+      return json({shared:true,status:t.status,participant:{id:other.id,name:other.name,lat,lng,updatedAt:Number(other.at),ageSec:Math.round(age/1000)},privacy:"approximate-live-location"});
+    }
     if(P[2]==="messages"&&m==="POST"){
       const text=String(b.text||"").trim().slice(0,500);if(!text)err("Type a message");if(!["matched","chatting","meetup","both_confirmed"].includes(t.status)||await blocked(env,u.id,oid))err("This chat is closed",409);
       const idm=id(),at=Date.now();await env.DB.prepare("INSERT INTO messages(id,tid,from_uid,text,at) VALUES(?,?,?,?,?)").bind(idm,t.id,u.id,text,at).run();const msg={id:idm,tid:t.id,from:u.id,text,at};await push(env,oid,{t:"msg",threadId:t.id,msg,from:u.name});await notify(env,oid,"message","New message from "+u.name+": "+text.slice(0,60),t.id);return json(msg);
