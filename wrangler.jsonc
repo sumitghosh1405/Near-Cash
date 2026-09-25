@@ -6,15 +6,26 @@
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*", "/healthz"]
+    "run_worker_first": [
+      "/api/*",
+      "/healthz"
+    ]
   },
   "durable_objects": {
     "bindings": [
-      { "name": "USER_STREAM", "class_name": "UserStream" }
+      {
+        "name": "USER_STREAM",
+        "class_name": "UserStream"
+      }
     ]
   },
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["UserStream"] }
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "UserStream"
+      ]
+    }
   ],
   "d1_databases": [
     {
@@ -22,5 +33,10 @@
       "database_name": "near-cash-db",
       "database_id": "48e8f7c1-820b-4455-a51a-0d28820fbdaf"
     }
-  ]
+  ],
+  "triggers": {
+    "crons": [
+      "*/5 * * * *"
+    ]
+  }
 }
