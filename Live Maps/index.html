@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07111f">
+<meta name="description" content="Near Cash Live Map Engine">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Near Cash — Live Map</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.11.2/dist/maplibre-gl.css">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<main id="app">
+<div id="map"></div>
+<header class="topbar"><div class="brand"><b>NC</b> Near Cash</div><div id="gpsStatus" class="pill">GPS: waiting</div></header>
+<div class="map-actions"><button id="backBtn" title="Back to Cash Radar">←</button><button id="recenterBtn" title="Recenter">◎</button><button id="northBtn" title="North up">N</button></div>
+<section class="sheet">
+<div class="grab"></div>
+<div class="row"><button id="locateBtn" class="primary">Locate me</button><button id="followBtn">Follow ON</button><button id="headingBtn">Compass</button></div>
+<div class="routebox"><label>Navigate to coordinates</label><div class="row"><input id="destination" inputmode="decimal" placeholder="Latitude, longitude"><button id="routeBtn" class="primary">Go</button></div><small>Example: 22.5726, 88.3639</small></div>
+<section id="navigation" class="nav hidden"><div class="navtop"><div><strong id="nextInstruction">Follow the route</strong><small id="stepMeta">—</small></div><strong id="eta">—</strong></div><div class="progress"><i id="progressBar"></i></div><div class="navbottom"><span id="remaining">— remaining</span><span id="offRoute">On route</span></div><button id="clearRouteBtn" class="clear">Clear route</button></section>
+<section class="offlinebox"><div class="offline-actions"><button id="offlineBtn">Check viewed cache</button><button id="clearOfflineBtn">Clear cache</button></div><small id="offlineStatus">Viewed-tile cache only. No bulk prefetch or guaranteed offline regional map.</small></section>
+<div class="stats"><div><small>GPS</small><strong id="accuracy">—</strong></div><div><small>Speed</small><strong id="speed">—</strong></div><div><small>Heading</small><strong id="heading">—</strong></div><div><small>Map</small><strong id="mapState">Live</strong></div></div>
+<div id="error" class="error hidden"></div>
+<footer>© OpenStreetMap contributors · Serverless map mode — no VPS required · GPS/map/routing services can be temporarily unavailable.</footer>
+</section>
+</main>
+<script src="https://unpkg.com/maplibre-gl@6.11.2/dist/maplibre-gl.js"></script>
+<script src="../config.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>
