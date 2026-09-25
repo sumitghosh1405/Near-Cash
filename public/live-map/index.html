@@ -20,10 +20,11 @@
 <div class="row"><button id="locateBtn" class="primary">Locate me</button><button id="followBtn">Follow ON</button><button id="headingBtn">Compass</button></div>
 <div class="routebox"><label>Navigate to coordinates</label><div class="row"><input id="destination" inputmode="decimal" placeholder="Latitude, longitude"><button id="routeBtn" class="primary">Go</button></div><small>Example: 22.5726, 88.3639</small></div>
 <section id="navigation" class="nav hidden"><div class="navtop"><div><strong id="nextInstruction">Follow the route</strong><small id="stepMeta">—</small></div><strong id="eta">—</strong></div><div class="progress"><i id="progressBar"></i></div><div class="navbottom"><span id="remaining">— remaining</span><span id="offRoute">On route</span></div><button id="clearRouteBtn" class="clear">Clear route</button></section>
+<section id="exchangeLocation" class="exchangebox hidden"><b id="exchangeTitle">Exchange location</b><small id="exchangeStatus">Location is shared only after an exchange is accepted.</small></section>
 <section class="offlinebox"><div class="offline-actions"><button id="offlineBtn">Check viewed cache</button><button id="clearOfflineBtn">Clear cache</button></div><small id="offlineStatus">Viewed-tile cache only. No bulk prefetch or guaranteed offline regional map.</small></section>
 <div class="stats"><div><small>GPS</small><strong id="accuracy">—</strong></div><div><small>Speed</small><strong id="speed">—</strong></div><div><small>Heading</small><strong id="heading">—</strong></div><div><small>Map</small><strong id="mapState">Live</strong></div></div>
 <div id="error" class="error hidden"></div>
-<footer>© OpenStreetMap contributors · Serverless map mode — no VPS required · GPS/map/routing services can be temporarily unavailable.</footer>
+<footer>© OpenStreetMap contributors · Live location is approximate and visible only for an active accepted exchange.</footer>
 </section>
 </main>
 <script src="https://unpkg.com/maplibre-gl@6.11.2/dist/maplibre-gl.js"></script>
