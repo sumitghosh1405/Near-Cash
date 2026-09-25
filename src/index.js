@@ -128,7 +128,7 @@ async function api(env,req,p,url){
       // Generate a fresh one-time meetup PIN. Only the plaintext code is ever returned, and only
       // to the person who generated it, once. The server stores just a hash, never the code itself.
       if(t.status!=="open")err("This exchange is closed",409);
-      const code=String(crypto.getRandomValues(new Uint32Array(1))[0]%900000+100000);
+      const code=String(crypto.getRandomValues(new Uint32Array(1))[0]%9000+1000);
       const hash=await sha(code+t.id), exp=Date.now()+15*60000;
       await env.DB.prepare("UPDATE threads SET pin_hash=?,pin_by=?,pin_exp=?,pin_tries=0,pin_verified=0 WHERE id=?").bind(hash,u.id,exp,t.id).run();
       await notify(env,oid,"safety",u.name+" generated a meetup PIN. Ask them for it in person to confirm you're both there.",t.id);
@@ -142,7 +142,7 @@ async function api(env,req,p,url){
       if(t.pin_by===u.id)err("Ask the other person to enter the PIN on their device.",403);
       if((t.pin_tries||0)>=5){await env.DB.prepare("UPDATE threads SET pin_hash=NULL,pin_by=NULL,pin_exp=NULL,pin_tries=0 WHERE id=?").bind(t.id).run();err("Too many attempts. Ask for a new PIN.",429);}
       const code=String(b.code||"").trim();
-      if(!/^\d{6}$/.test(code))err("Enter the 6-digit PIN");
+      if(!/^\d{4}$/.test(code))err("Enter the 4-digit PIN");
       const hash=await sha(code+t.id);
       if(hash!==t.pin_hash){
         const tries=(t.pin_tries||0)+1;
@@ -150,12 +150,17 @@ async function api(env,req,p,url){
         await env.DB.prepare("UPDATE threads SET pin_tries=? WHERE id=?").bind(tries,t.id).run();
         err("Wrong PIN. "+(5-tries)+" attempt"+(5-tries===1?"":"s")+" left.",401);
       }
-      // Correct: the PIN is single-use, so it is wiped immediately and cannot be replayed.
-      await env.DB.prepare("UPDATE threads SET pin_hash=NULL,pin_by=NULL,pin_exp=NULL,pin_tries=0,pin_verified=1 WHERE id=?").bind(t.id).run();
-      await notify(env,u.id,"safety","Meetup PIN verified. You've confirmed you're both here.",t.id);
-      await notify(env,oid,"safety",u.name+" verified the meetup PIN.",t.id);
+      // Correct PIN: the PIN is single-use, so it is wiped immediately and cannot be replayed.
+      // Both people being able to produce/enter it in person is itself proof the exchange happened,
+      // so this closes the exchange out for both sides right away — no separate manual confirm step.
+      await env.DB.batch([
+        env.DB.prepare("UPDATE threads SET pin_hash=NULL,pin_by=NULL,pin_exp=NULL,pin_tries=0,pin_verified=1,confirmed=?,status='completed' WHERE id=?").bind(JSON.stringify([t.a,t.b]),t.id),
+        env.DB.prepare("UPDATE users SET done=done+1 WHERE id IN (?,?)").bind(t.a,t.b)
+      ]);
+      await notify(env,u.id,"exchange","Meetup PIN verified — exchange completed: ₹"+t.amount+" with "+(o&&o.name||"the other person")+".",t.id);
+      await notify(env,oid,"exchange","Meetup PIN verified by "+u.name+" — exchange completed: ₹"+t.amount+".",t.id);
       await push(env,oid,{t:"thread"});
-      return json({ok:true});
+      return json({ok:true,completed:true});
     }
   }
   if(p==="report"&&m==="POST"){
