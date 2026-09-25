@@ -50,3 +50,11 @@ External GPS, browser permissions, Cloudflare, OpenStreetMap and OSRM services r
 - Verification is limited to five incorrect attempts per exchange, with additional request rate limiting.
 - Completion is blocked server-side until PIN verification and both participant confirmations are recorded.
 - The Exchange PIN is not a banking PIN, UPI PIN, password, or identity guarantee.
+
+
+## Live Map privacy update
+- The Live Map does not display nearby users or listings as location markers.
+- A participant location is available only from an active accepted exchange.
+- Participant location is approximate and refreshed while current; stale locations are hidden.
+- Exchange chat includes the Live Map entry point for that specific exchange.
+- Match scoring weights are not shown to users; the radar uses short labels such as Strong match, Good match, or Nearby match.
