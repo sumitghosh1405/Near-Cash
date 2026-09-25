@@ -1,8 +1,18 @@
 import { DurableObject } from "cloudflare:workers";
 
-const SCHEMA=["CREATE TABLE IF NOT EXISTS users (\n  id TEXT PRIMARY KEY,\n  phone TEXT NOT NULL UNIQUE,\n  name TEXT NOT NULL,\n  done INTEGER NOT NULL DEFAULT 0,\n  lat REAL,\n  lng REAL,\n  at INTEGER,\n  created INTEGER NOT NULL\n)", "CREATE TABLE IF NOT EXISTS sessions (\n  token_hash TEXT PRIMARY KEY,\n  uid TEXT NOT NULL,\n  exp INTEGER NOT NULL,\n  FOREIGN KEY(uid) REFERENCES users(id) ON DELETE CASCADE\n)", "CREATE INDEX IF NOT EXISTS idx_sessions_exp ON sessions(exp)", "CREATE TABLE IF NOT EXISTS otps (\n  phone TEXT PRIMARY KEY,\n  hash TEXT NOT NULL,\n  exp INTEGER NOT NULL,\n  tries INTEGER NOT NULL DEFAULT 0\n)", "CREATE TABLE IF NOT EXISTS listings (\n  id TEXT PRIMARY KEY,\n  uid TEXT NOT NULL,\n  type TEXT NOT NULL CHECK(type IN ('have','need')),\n  amount INTEGER NOT NULL,\n  exp INTEGER NOT NULL,\n  status TEXT NOT NULL DEFAULT 'open',\n  FOREIGN KEY(uid) REFERENCES users(id) ON DELETE CASCADE\n)", "CREATE INDEX IF NOT EXISTS idx_listings_open ON listings(status, exp)", "CREATE INDEX IF NOT EXISTS idx_listings_uid ON listings(uid)", "CREATE TABLE IF NOT EXISTS threads (\n  id TEXT PRIMARY KEY,\n  lid TEXT NOT NULL,\n  amount INTEGER NOT NULL,\n  type TEXT NOT NULL,\n  a TEXT NOT NULL,\n  b TEXT NOT NULL,\n  status TEXT NOT NULL DEFAULT 'open',\n  confirmed TEXT NOT NULL DEFAULT '[]',\n  created INTEGER NOT NULL,\n  FOREIGN KEY(a) REFERENCES users(id) ON DELETE CASCADE,\n  FOREIGN KEY(b) REFERENCES users(id) ON DELETE CASCADE\n)", "CREATE INDEX IF NOT EXISTS idx_threads_user_a ON threads(a, created)", "CREATE INDEX IF NOT EXISTS idx_threads_user_b ON threads(b, created)", "CREATE TABLE IF NOT EXISTS messages (\n  id TEXT PRIMARY KEY,\n  tid TEXT NOT NULL,\n  from_uid TEXT NOT NULL,\n  text TEXT NOT NULL,\n  at INTEGER NOT NULL,\n  FOREIGN KEY(tid) REFERENCES threads(id) ON DELETE CASCADE,\n  FOREIGN KEY(from_uid) REFERENCES users(id) ON DELETE CASCADE\n)", "CREATE INDEX IF NOT EXISTS idx_messages_tid ON messages(tid, at)", "CREATE TABLE IF NOT EXISTS reports (\n  id TEXT PRIMARY KEY,\n  by_uid TEXT NOT NULL,\n  who_uid TEXT NOT NULL,\n  tid TEXT NOT NULL,\n  reason TEXT NOT NULL,\n  at INTEGER NOT NULL,\n  last_json TEXT NOT NULL\n)", "CREATE TABLE IF NOT EXISTS blocks (\n  by_uid TEXT NOT NULL,\n  who_uid TEXT NOT NULL,\n  PRIMARY KEY(by_uid, who_uid)\n)", "CREATE TABLE IF NOT EXISTS notifications (\n  id TEXT PRIMARY KEY,\n  uid TEXT NOT NULL,\n  kind TEXT NOT NULL,\n  text TEXT NOT NULL,\n  ref TEXT,\n  at INTEGER NOT NULL,\n  read INTEGER NOT NULL DEFAULT 0,\n  FOREIGN KEY(uid) REFERENCES users(id) ON DELETE CASCADE\n)", "CREATE INDEX IF NOT EXISTS idx_notifications_uid ON notifications(uid, at)"];
+const SCHEMA=["CREATE TABLE IF NOT EXISTS users (\n  id TEXT PRIMARY KEY,\n  phone TEXT NOT NULL UNIQUE,\n  name TEXT NOT NULL,\n  done INTEGER NOT NULL DEFAULT 0,\n  lat REAL,\n  lng REAL,\n  at INTEGER,\n  created INTEGER NOT NULL\n)", "CREATE TABLE IF NOT EXISTS sessions (\n  token_hash TEXT PRIMARY KEY,\n  uid TEXT NOT NULL,\n  exp INTEGER NOT NULL,\n  FOREIGN KEY(uid) REFERENCES users(id) ON DELETE CASCADE\n)", "CREATE INDEX IF NOT EXISTS idx_sessions_exp ON sessions(exp)", "CREATE TABLE IF NOT EXISTS otps (\n  phone TEXT PRIMARY KEY,\n  hash TEXT NOT NULL,\n  exp INTEGER NOT NULL,\n  tries INTEGER NOT NULL DEFAULT 0\n)", "CREATE TABLE IF NOT EXISTS listings (\n  id TEXT PRIMARY KEY,\n  uid TEXT NOT NULL,\n  type TEXT NOT NULL CHECK(type IN ('have','need')),\n  amount INTEGER NOT NULL,\n  exp INTEGER NOT NULL,\n  status TEXT NOT NULL DEFAULT 'open',\n  FOREIGN KEY(uid) REFERENCES users(id) ON DELETE CASCADE\n)", "CREATE INDEX IF NOT EXISTS idx_listings_open ON listings(status, exp)", "CREATE INDEX IF NOT EXISTS idx_listings_uid ON listings(uid)", "CREATE TABLE IF NOT EXISTS threads (\n  id TEXT PRIMARY KEY,\n  lid TEXT NOT NULL,\n  amount INTEGER NOT NULL,\n  type TEXT NOT NULL,\n  a TEXT NOT NULL,\n  b TEXT NOT NULL,\n  status TEXT NOT NULL DEFAULT 'open',\n  confirmed TEXT NOT NULL DEFAULT '[]',\n  created INTEGER NOT NULL,\n  pin_hash TEXT,\n  pin_by TEXT,\n  pin_exp INTEGER,\n  pin_tries INTEGER NOT NULL DEFAULT 0,\n  pin_verified INTEGER NOT NULL DEFAULT 0,\n  FOREIGN KEY(a) REFERENCES users(id) ON DELETE CASCADE,\n  FOREIGN KEY(b) REFERENCES users(id) ON DELETE CASCADE\n)", "CREATE INDEX IF NOT EXISTS idx_threads_user_a ON threads(a, created)", "CREATE INDEX IF NOT EXISTS idx_threads_user_b ON threads(b, created)", "CREATE TABLE IF NOT EXISTS messages (\n  id TEXT PRIMARY KEY,\n  tid TEXT NOT NULL,\n  from_uid TEXT NOT NULL,\n  text TEXT NOT NULL,\n  at INTEGER NOT NULL,\n  FOREIGN KEY(tid) REFERENCES threads(id) ON DELETE CASCADE,\n  FOREIGN KEY(from_uid) REFERENCES users(id) ON DELETE CASCADE\n)", "CREATE INDEX IF NOT EXISTS idx_messages_tid ON messages(tid, at)", "CREATE TABLE IF NOT EXISTS reports (\n  id TEXT PRIMARY KEY,\n  by_uid TEXT NOT NULL,\n  who_uid TEXT NOT NULL,\n  tid TEXT NOT NULL,\n  reason TEXT NOT NULL,\n  at INTEGER NOT NULL,\n  last_json TEXT NOT NULL\n)", "CREATE TABLE IF NOT EXISTS blocks (\n  by_uid TEXT NOT NULL,\n  who_uid TEXT NOT NULL,\n  PRIMARY KEY(by_uid, who_uid)\n)", "CREATE TABLE IF NOT EXISTS notifications (\n  id TEXT PRIMARY KEY,\n  uid TEXT NOT NULL,\n  kind TEXT NOT NULL,\n  text TEXT NOT NULL,\n  ref TEXT,\n  at INTEGER NOT NULL,\n  read INTEGER NOT NULL DEFAULT 0,\n  FOREIGN KEY(uid) REFERENCES users(id) ON DELETE CASCADE\n)", "CREATE INDEX IF NOT EXISTS idx_notifications_uid ON notifications(uid, at)"];
 let schemaReady=false;
-async function ensureSchema(env){if(schemaReady)return;await env.DB.batch(SCHEMA.map(q=>env.DB.prepare(q)));schemaReady=true;}
+// Column additions for DBs created before the meetup-PIN feature existed. SQLite has no
+// "ADD COLUMN IF NOT EXISTS", so these are run one at a time and a "duplicate column" failure
+// (already applied) is swallowed; any other failure is logged but never blocks boot.
+const MIGRATIONS=[
+  "ALTER TABLE threads ADD COLUMN pin_hash TEXT",
+  "ALTER TABLE threads ADD COLUMN pin_by TEXT",
+  "ALTER TABLE threads ADD COLUMN pin_exp INTEGER",
+  "ALTER TABLE threads ADD COLUMN pin_tries INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE threads ADD COLUMN pin_verified INTEGER NOT NULL DEFAULT 0",
+];
+async function ensureSchema(env){if(schemaReady)return;await env.DB.batch(SCHEMA.map(q=>env.DB.prepare(q)));for(const q of MIGRATIONS){try{await env.DB.prepare(q).run();}catch(e){if(!/duplicate column/i.test(e&&e.message||""))console.error("migration",q,e&&e.message);}}schemaReady=true;}
 const guestHits=new Map();
 const guestOk=ip=>{const t=Date.now(),h=guestHits.get(ip);if(!h||h.r<t){guestHits.set(ip,{c:1,r:t+3600000});return true;}return ++h.c<=20;};
 const json = (o, status=200, extra={}) => new Response(JSON.stringify(o), {status, headers:{"Content-Type":"application/json; charset=utf-8", ...extra}});
@@ -99,7 +109,11 @@ async function api(env,req,p,url){
   const P=p.split('/');
   if(P[0]==="threads"&&P[1]){
     const t=await env.DB.prepare("SELECT * FROM threads WHERE id=? AND (a=? OR b=?)").bind(P[1],u.id,u.id).first();if(!t)err("Not found",404);const oid=t.a===u.id?t.b:t.a;const o=await env.DB.prepare("SELECT id,name,done FROM users WHERE id=?").bind(oid).first();
-    if(!P[2]){const msgs=await env.DB.prepare("SELECT id,tid,from_uid AS \"from\",text,at FROM messages WHERE tid=? ORDER BY at DESC LIMIT 200").bind(t.id).all();const confirmed=JSON.parse(t.confirmed||"[]");return json({id:t.id,amount:t.amount,status:t.status,confirmed,other:pubU(o),msgs:(msgs.results||[]).reverse()});}
+    if(!P[2]){const msgs=await env.DB.prepare("SELECT id,tid,from_uid AS \"from\",text,at FROM messages WHERE tid=? ORDER BY at DESC LIMIT 200").bind(t.id).all();const confirmed=JSON.parse(t.confirmed||"[]");
+      const pinActive=!!(t.pin_hash&&t.pin_exp&&t.pin_exp>Date.now());
+      const pin=pinActive?{active:true,mine:t.pin_by===u.id,exp:t.pin_exp,triesLeft:Math.max(0,5-(t.pin_tries||0))}:{active:false,mine:false,exp:null,triesLeft:5};
+      pin.verified=!!t.pin_verified;
+      return json({id:t.id,amount:t.amount,status:t.status,confirmed,other:pubU(o),pin,msgs:(msgs.results||[]).reverse()});}
     if(P[2]==="messages"&&m==="POST"){
       const text=String(b.text||"").trim().slice(0,500);if(!text)err("Type a message");if(t.status!=="open"||await blocked(env,u.id,oid))err("This chat is closed",409);
       const idm=id(),at=Date.now();await env.DB.prepare("INSERT INTO messages(id,tid,from_uid,text,at) VALUES(?,?,?,?,?)").bind(idm,t.id,u.id,text,at).run();const msg={id:idm,tid:t.id,from:u.id,text,at};await push(env,oid,{t:"msg",threadId:t.id,msg,from:u.name});await notify(env,oid,"message","New message from "+u.name+": "+text.slice(0,60),t.id);return json(msg);
@@ -107,6 +121,39 @@ async function api(env,req,p,url){
     if(P[2]==="complete"&&m==="POST"){
       if(t.status!=="open")err("This exchange is closed",409);let confirmed=JSON.parse(t.confirmed||"[]");if(!confirmed.includes(u.id))confirmed.push(u.id);let status=t.status;if(confirmed.length===2)status="completed";
       const stmts=[env.DB.prepare("UPDATE threads SET confirmed=?,status=? WHERE id=?").bind(JSON.stringify(confirmed),status,t.id)];if(status==="completed"){stmts.push(env.DB.prepare("UPDATE users SET done=done+1 WHERE id IN (?,?)").bind(u.id,oid));}await env.DB.batch(stmts);const onm=await env.DB.prepare("SELECT name FROM users WHERE id=?").bind(oid).first();if(status==="completed"){await notify(env,u.id,"exchange","Exchange completed: ₹"+t.amount+" with "+(onm&&onm.name||"the other person")+".",t.id);await notify(env,oid,"exchange","Exchange completed: ₹"+t.amount+" with "+u.name+".",t.id);}else{await notify(env,oid,"exchange",u.name+" confirmed the ₹"+t.amount+" exchange. Confirm on your side to complete it.",t.id);await notify(env,u.id,"exchange","You confirmed the exchange. Waiting for the other person.",t.id);}await push(env,oid,{t:"thread"});return json({ok:true});
+    }
+    if(P[2]==="pin"&&!P[3]&&m==="POST"){
+      // Generate a fresh one-time meetup PIN. Only the plaintext code is ever returned, and only
+      // to the person who generated it, once. The server stores just a hash, never the code itself.
+      if(t.status!=="open")err("This exchange is closed",409);
+      const code=String(crypto.getRandomValues(new Uint32Array(1))[0]%900000+100000);
+      const hash=await sha(code+t.id), exp=Date.now()+15*60000;
+      await env.DB.prepare("UPDATE threads SET pin_hash=?,pin_by=?,pin_exp=?,pin_tries=0,pin_verified=0 WHERE id=?").bind(hash,u.id,exp,t.id).run();
+      await notify(env,oid,"safety",u.name+" generated a meetup PIN. Ask them for it in person to confirm you're both there.",t.id);
+      await notify(env,u.id,"safety","Meetup PIN generated. Show or tell it to "+(o&&o.name||"the other person")+" in person — do not send it in chat.",t.id);
+      await push(env,oid,{t:"thread"});
+      return json({code,exp});
+    }
+    if(P[2]==="pin"&&P[3]==="verify"&&m==="POST"){
+      if(t.status!=="open")err("This exchange is closed",409);
+      if(!t.pin_hash||!t.pin_exp||t.pin_exp<Date.now())err("No active PIN. Ask them to generate a new one.",410);
+      if(t.pin_by===u.id)err("Ask the other person to enter the PIN on their device.",403);
+      if((t.pin_tries||0)>=5){await env.DB.prepare("UPDATE threads SET pin_hash=NULL,pin_by=NULL,pin_exp=NULL,pin_tries=0 WHERE id=?").bind(t.id).run();err("Too many attempts. Ask for a new PIN.",429);}
+      const code=String(b.code||"").trim();
+      if(!/^\d{6}$/.test(code))err("Enter the 6-digit PIN");
+      const hash=await sha(code+t.id);
+      if(hash!==t.pin_hash){
+        const tries=(t.pin_tries||0)+1;
+        if(tries>=5){await env.DB.prepare("UPDATE threads SET pin_hash=NULL,pin_by=NULL,pin_exp=NULL,pin_tries=0 WHERE id=?").bind(t.id).run();err("Wrong PIN. Too many attempts — ask for a new one.",429);}
+        await env.DB.prepare("UPDATE threads SET pin_tries=? WHERE id=?").bind(tries,t.id).run();
+        err("Wrong PIN. "+(5-tries)+" attempt"+(5-tries===1?"":"s")+" left.",401);
+      }
+      // Correct: the PIN is single-use, so it is wiped immediately and cannot be replayed.
+      await env.DB.prepare("UPDATE threads SET pin_hash=NULL,pin_by=NULL,pin_exp=NULL,pin_tries=0,pin_verified=1 WHERE id=?").bind(t.id).run();
+      await notify(env,u.id,"safety","Meetup PIN verified. You've confirmed you're both here.",t.id);
+      await notify(env,oid,"safety",u.name+" verified the meetup PIN.",t.id);
+      await push(env,oid,{t:"thread"});
+      return json({ok:true});
     }
   }
   if(p==="report"&&m==="POST"){
@@ -134,4 +181,4 @@ export class UserStream extends DurableObject {
     return new Response("Not found",{status:404});
   }
 }
-export default {async fetch(req,env){const url=new URL(req.url);if(url.pathname==="/healthz"){let db=false,schema=false,error=null;try{await ensureSchema(env);db=true;schema=!!await env.DB.prepare("SELECT name FROM sqlite_master WHERE name='otps'").first();}catch(e){error=String(e&&e.message||e).slice(0,160);}return json({ok:db&&schema,v:7,db,schema,devOtp:env.DEV_OTP==="true",error});}if(url.pathname.startsWith("/api/")){try{await ensureSchema(env);return await api(env,req,url.pathname.slice(5),url);}catch(e){if(!e.status)console.error("Worker error:",e&&e.stack||e);return json({error:e.status?e.message:(env.DEV_OTP==="true"?"Server error: "+(e&&e.message):"Server error")},e.status||500);}}return env.ASSETS.fetch(req);}};
+export default {async fetch(req,env){const url=new URL(req.url);if(url.pathname==="/healthz"){let db=false,schema=false,error=null;try{await ensureSchema(env);db=true;schema=!!await env.DB.prepare("SELECT name FROM sqlite_master WHERE name='otps'").first();}catch(e){error=String(e&&e.message||e).slice(0,160);}return json({ok:db&&schema,v:8,db,schema,devOtp:env.DEV_OTP==="true",error});}if(url.pathname.startsWith("/api/")){try{await ensureSchema(env);return await api(env,req,url.pathname.slice(5),url);}catch(e){if(!e.status)console.error("Worker error:",e&&e.stack||e);return json({error:e.status?e.message:(env.DEV_OTP==="true"?"Server error: "+(e&&e.message):"Server error")},e.status||500);}}return env.ASSETS.fetch(req);}};
