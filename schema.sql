@@ -42,6 +42,11 @@ CREATE TABLE IF NOT EXISTS threads (
   status TEXT NOT NULL DEFAULT 'open',
   confirmed TEXT NOT NULL DEFAULT '[]',
   created INTEGER NOT NULL,
+  pin_hash TEXT,
+  pin_by TEXT,
+  pin_exp INTEGER,
+  pin_tries INTEGER NOT NULL DEFAULT 0,
+  pin_verified INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY(a) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY(b) REFERENCES users(id) ON DELETE CASCADE
 );
