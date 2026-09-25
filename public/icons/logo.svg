@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="17 9 66 74" role="img" aria-label="Near Cash">
+<defs><linearGradient id="g" x1="20" y1="14" x2="80" y2="80" gradientUnits="userSpaceOnUse"><stop stop-color="#3ddc97"/><stop offset="1" stop-color="#5db7f5"/></linearGradient></defs>
+<rect x="24" y="16" width="44" height="56" rx="9" fill="#0d2238" stroke="url(#g)" stroke-width="2.2" transform="rotate(-7 24 16)"/>
+<rect x="31" y="22" width="44" height="56" rx="9" fill="url(#g)" transform="rotate(5 31 22)"/>
+<circle cx="53" cy="50" r="14" fill="#08131d" opacity=".95"/>
+<text x="53" y="57" text-anchor="middle" font-family="Arial,sans-serif" font-size="19" font-weight="700" fill="#fff">₹</text></svg>
