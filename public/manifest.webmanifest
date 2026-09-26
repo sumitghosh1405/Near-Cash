@@ -25,5 +25,7 @@
   "categories": [
     "finance",
     "utilities"
-  ]
+  ],
+  "prefer_related_applications": false,
+  "orientation": "portrait-primary"
 }
