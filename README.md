@@ -35,12 +35,13 @@ This build adds a read-only admin endpoint for the separate Near Cash Admin Dash
 
 ### Cloudflare setup
 
-1. In the Near Cash Worker, add a secret named `ADMIN_ANALYTICS_KEY`.
+1. In the Near Cash Worker **Production** environment, add a secret named `ADMIN_ANALYTICS_KEY`.
 2. Use a long random value as the secret. Do not commit it to GitHub.
-3. Deploy this Worker.
-4. In the separate `near-cash-admin` repository, set the API base to this Worker URL (for example, `https://your-worker.workers.dev`).
-5. Open the admin dashboard and enter the same admin key.
+3. Deploy the Worker **after** saving the secret.
+4. Verify `GET /api/admin/status` returns `configured: true` (it never returns the secret value).
+5. In the separate `near-cash-admin` repository, set the API base to this Worker URL (for example, `https://your-worker.workers.dev`).
+6. Open the admin dashboard and enter the same admin key.
 
-The dashboard calls `GET /api/admin/summary` with `X-Admin-Key`. The endpoint reads existing D1 data and returns privacy-safe aggregate statistics.
+The dashboard calls `GET /api/admin/summary` with `X-Admin-Key`. For troubleshooting, `GET /api/admin/status` reports only whether a supported admin secret binding is present; it never exposes the secret value. The Worker accepts the primary `ADMIN_ANALYTICS_KEY` binding and the legacy aliases `ADMIN_ANALYTICS_K` and `ADMIN_KEY`. The endpoint reads existing D1 data and returns privacy-safe aggregate statistics.
 
 The endpoint supports CORS for the separate dashboard and does not expose phone numbers, session tokens, PINs, message text, or exact user locations.
