@@ -46,11 +46,22 @@ const getAdminAnalyticsKey = (env) => {
   }
   return {value:"", name:null};
 };
+// Diagnostic only: lists env binding *names* (never values) that look admin/analytics-related.
+// This is what lets you see a typo'd, mis-cased, or missing secret from /api/admin/status
+// without ever exposing the secret itself.
+const adminEnvHints = (env) => {
+  try { return Object.keys(env||{}).filter(k=>/ADMIN|ANALYTICS/i.test(k)).sort(); }
+  catch { return []; }
+};
 async function adminSummary(env,req){
   if(req.method === "OPTIONS") return new Response(null,{status:204,headers:ADMIN_CORS});
   if(req.method !== "GET") return adminJson({error:"Method not allowed"},405);
   const configured = getAdminAnalyticsKey(env);
-  if(!configured.value) return adminJson({error:"Admin analytics is not configured. Add the Production secret ADMIN_ANALYTICS_KEY to the near-cash Worker, then redeploy."},503);
+  if(!configured.value){
+    const hints=adminEnvHints(env);
+    const extra=hints.length?` Found these admin-related bindings instead: ${hints.join(", ")}.`:" No admin-related bindings were found on this Worker at all.";
+    return adminJson({error:"Admin analytics is not configured. Add the Production secret ADMIN_ANALYTICS_KEY to the near-cash Worker, then redeploy."+extra,expectedNames:["ADMIN_ANALYTICS_KEY","ADMIN_ANALYTICS_K","ADMIN_KEY"],presentAdminBindings:hints},503);
+  }
   const supplied = String(req.headers.get("X-Admin-Key") || "");
   if(!supplied) return adminJson({error:"Admin key required"},401);
   const [expectedHash,suppliedHash] = await Promise.all([sha(configured.value),sha(supplied)]);
@@ -92,7 +103,7 @@ async function api(env,req,p,url){
     if(req.method === "OPTIONS") return new Response(null,{status:204,headers:ADMIN_CORS});
     if(req.method !== "GET") return adminJson({error:"Method not allowed"},405);
     const configured = getAdminAnalyticsKey(env);
-    return adminJson({ok:true,configured:!!configured.value,source:configured.name||null});
+    return adminJson({ok:true,configured:!!configured.value,source:configured.name||null,expectedNames:["ADMIN_ANALYTICS_KEY","ADMIN_ANALYTICS_K","ADMIN_KEY"],presentAdminBindings:adminEnvHints(env)});
   }
   if(p==="admin/summary") return adminSummary(env,req);
   const m=req.method, b=m==="POST"?await readBody(req):{};
