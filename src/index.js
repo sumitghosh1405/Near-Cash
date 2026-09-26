@@ -34,7 +34,51 @@ async function getUser(env,req,url){const tok=(req.headers.get("Authorization")|
 async function blocked(env,a,b){return !!await env.DB.prepare("SELECT 1 FROM blocks WHERE (by_uid=? AND who_uid=?) OR (by_uid=? AND who_uid=?) LIMIT 1").bind(a,b,b,a).first();}
 async function notify(env,uid,kind,text,ref){try{await env.DB.prepare("INSERT INTO notifications(id,uid,kind,text,ref,at,read) VALUES(?,?,?,?,?,?,0)").bind(id(),uid,kind,String(text).slice(0,160),ref||null,Date.now()).run();await push(env,uid,{t:"notif"});}catch(e){console.error("notify",e&&e.message);}}
 async function push(env,uid,event){const stub=env.USER_STREAM.get(env.USER_STREAM.idFromName(uid));await stub.fetch("https://stream/push",{method:"POST",body:JSON.stringify(event)}).catch(()=>{});}
+const ADMIN_CORS = {"Access-Control-Allow-Origin":"*","Access-Control-Allow-Methods":"GET,OPTIONS","Access-Control-Allow-Headers":"X-Admin-Key,Accept,Content-Type","Cache-Control":"no-store"};
+const adminJson = (o,status=200) => json(o,status,ADMIN_CORS);
+async function adminSummary(env,req){
+  if(req.method === "OPTIONS") return new Response(null,{status:204,headers:ADMIN_CORS});
+  if(req.method !== "GET") return adminJson({error:"Method not allowed"},405);
+  const configured = String(env.ADMIN_ANALYTICS_KEY || "");
+  if(!configured) return adminJson({error:"Admin analytics is not configured"},503);
+  const supplied = String(req.headers.get("X-Admin-Key") || "");
+  if(!supplied) return adminJson({error:"Admin key required"},401);
+  const [expectedHash,suppliedHash] = await Promise.all([sha(configured),sha(supplied)]);
+  if(expectedHash !== suppliedHash) return adminJson({error:"Invalid admin key"},401);
+  const since=Date.now()-30*86400000;
+  const [users,newUsers,active24h,listings,threads,completed,messages,reports,locationUsers] = await Promise.all([
+    env.DB.prepare("SELECT COUNT(*) AS c FROM users").first(),
+    env.DB.prepare("SELECT COUNT(*) AS c FROM users WHERE created>=?").bind(since).first(),
+    env.DB.prepare("SELECT COUNT(*) AS c FROM users WHERE COALESCE(at,created)>=?").bind(Date.now()-86400000).first(),
+    env.DB.prepare("SELECT COUNT(*) AS c FROM listings WHERE status='open' AND exp>=?").bind(Date.now()).first(),
+    env.DB.prepare("SELECT COUNT(*) AS c FROM threads WHERE created>=?").bind(since).first(),
+    env.DB.prepare("SELECT COUNT(*) AS c FROM threads WHERE status='completed' AND created>=?").bind(since).first(),
+    env.DB.prepare("SELECT COUNT(*) AS c FROM messages WHERE at>=?").bind(since).first(),
+    env.DB.prepare("SELECT COUNT(*) AS c FROM reports WHERE at>=?").bind(since).first(),
+    env.DB.prepare("SELECT COUNT(*) AS c FROM users WHERE lat IS NOT NULL AND lng IS NOT NULL AND COALESCE(at,created)>=?").bind(since).first()
+  ]);
+  const events = [
+    {event:"sign_up",c:Number(newUsers?.c||0)},
+    {event:"location_permission_granted",c:Number(locationUsers?.c||0)},
+    {event:"radar_opened",c:0},
+    {event:"match_viewed",c:0},
+    {event:"connection_started",c:Number(threads?.c||0)},
+    {event:"message_sent",c:Number(messages?.c||0)},
+    {event:"exchange_completed",c:Number(completed?.c||0)},
+    {event:"report_created",c:Number(reports?.c||0)}
+  ];
+  const daily = await env.DB.prepare(`
+    SELECT day, SUM(c) AS c FROM (
+      SELECT strftime('%Y-%m-%d',created/1000,'unixepoch') day, COUNT(*) c FROM users WHERE created>=? GROUP BY day
+      UNION ALL SELECT strftime('%Y-%m-%d',created/1000,'unixepoch'), COUNT(*) FROM threads WHERE created>=? GROUP BY strftime('%Y-%m-%d',created/1000,'unixepoch')
+      UNION ALL SELECT strftime('%Y-%m-%d',at/1000,'unixepoch'), COUNT(*) FROM messages WHERE at>=? GROUP BY strftime('%Y-%m-%d',at/1000,'unixepoch')
+      UNION ALL SELECT strftime('%Y-%m-%d',at/1000,'unixepoch'), COUNT(*) FROM reports WHERE at>=? GROUP BY strftime('%Y-%m-%d',at/1000,'unixepoch')
+    ) GROUP BY day ORDER BY day`).bind(since,since,since,since).all();
+  const totalEvents = events.reduce((n,x)=>n+x.c,0);
+  return adminJson({ok:true,rangeDays:30,generatedAt:Date.now(),totals:{events:totalEvents,newUsers:Number(newUsers?.c||0),activeUsers24h:Number(active24h?.c||0),completedExchanges:Number(completed?.c||0),errors:0,totalUsers:Number(users?.c||0),openListings:Number(listings?.c||0),connections:Number(threads?.c||0),messages:Number(messages?.c||0),reports:Number(reports?.c||0)},funnel:events.filter(x=>["sign_up","location_permission_granted","radar_opened","match_viewed","connection_started","exchange_completed"].includes(x.event)),events:events.filter(x=>x.c>0),topRoutes:[],daily:daily.results||[]});
+}
 async function api(env,req,p,url){
+  if(p==="admin/summary") return adminSummary(env,req);
   const m=req.method, b=m==="POST"?await readBody(req):{};
   if(p==="guest"&&m==="POST"){
     if(env.REQUIRE_SIGNIN==="true")err("Sign in required",403);
