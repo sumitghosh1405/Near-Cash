@@ -36,14 +36,24 @@ async function notify(env,uid,kind,text,ref){try{await env.DB.prepare("INSERT IN
 async function push(env,uid,event){const stub=env.USER_STREAM.get(env.USER_STREAM.idFromName(uid));await stub.fetch("https://stream/push",{method:"POST",body:JSON.stringify(event)}).catch(()=>{});}
 const ADMIN_CORS = {"Access-Control-Allow-Origin":"*","Access-Control-Allow-Methods":"GET,OPTIONS","Access-Control-Allow-Headers":"X-Admin-Key,Accept,Content-Type","Cache-Control":"no-store"};
 const adminJson = (o,status=200) => json(o,status,ADMIN_CORS);
+const getAdminAnalyticsKey = (env) => {
+  // Primary production secret. The aliases keep older Cloudflare deployments compatible
+  // if the secret was accidentally created under one of the legacy names.
+  const names = ["ADMIN_ANALYTICS_KEY", "ADMIN_ANALYTICS_K", "ADMIN_KEY"];
+  for (const name of names) {
+    const value = String(env[name] || "").trim();
+    if (value) return {value, name};
+  }
+  return {value:"", name:null};
+};
 async function adminSummary(env,req){
   if(req.method === "OPTIONS") return new Response(null,{status:204,headers:ADMIN_CORS});
   if(req.method !== "GET") return adminJson({error:"Method not allowed"},405);
-  const configured = String(env.ADMIN_ANALYTICS_KEY || "");
-  if(!configured) return adminJson({error:"Admin analytics is not configured"},503);
+  const configured = getAdminAnalyticsKey(env);
+  if(!configured.value) return adminJson({error:"Admin analytics is not configured. Add the Production secret ADMIN_ANALYTICS_KEY to the near-cash Worker, then redeploy."},503);
   const supplied = String(req.headers.get("X-Admin-Key") || "");
   if(!supplied) return adminJson({error:"Admin key required"},401);
-  const [expectedHash,suppliedHash] = await Promise.all([sha(configured),sha(supplied)]);
+  const [expectedHash,suppliedHash] = await Promise.all([sha(configured.value),sha(supplied)]);
   if(expectedHash !== suppliedHash) return adminJson({error:"Invalid admin key"},401);
   const since=Date.now()-30*86400000;
   const [users,newUsers,active24h,listings,threads,completed,messages,reports,locationUsers] = await Promise.all([
@@ -78,6 +88,12 @@ async function adminSummary(env,req){
   return adminJson({ok:true,rangeDays:30,generatedAt:Date.now(),totals:{events:totalEvents,newUsers:Number(newUsers?.c||0),activeUsers24h:Number(active24h?.c||0),completedExchanges:Number(completed?.c||0),errors:0,totalUsers:Number(users?.c||0),openListings:Number(listings?.c||0),connections:Number(threads?.c||0),messages:Number(messages?.c||0),reports:Number(reports?.c||0)},funnel:events.filter(x=>["sign_up","location_permission_granted","radar_opened","match_viewed","connection_started","exchange_completed"].includes(x.event)),events:events.filter(x=>x.c>0),topRoutes:[],daily:daily.results||[]});
 }
 async function api(env,req,p,url){
+  if(p==="admin/status") {
+    if(req.method === "OPTIONS") return new Response(null,{status:204,headers:ADMIN_CORS});
+    if(req.method !== "GET") return adminJson({error:"Method not allowed"},405);
+    const configured = getAdminAnalyticsKey(env);
+    return adminJson({ok:true,configured:!!configured.value,source:configured.name||null});
+  }
   if(p==="admin/summary") return adminSummary(env,req);
   const m=req.method, b=m==="POST"?await readBody(req):{};
   if(p==="guest"&&m==="POST"){
