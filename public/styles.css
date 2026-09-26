@@ -120,3 +120,55 @@ h1,h2,.hero h1{font-weight:600;letter-spacing:-.03em}.hero h1{font-size:clamp(38
 /* Phones: show the search bar as a second row under the header */
 @media(max-width:900px){.top{flex-wrap:wrap;height:auto;padding:10px 17px 12px;row-gap:10px}.mobile-brand{order:1}.top-actions{order:2}.search{display:flex!important;order:3;flex:1 0 100%;width:100%;min-width:0;height:44px}.sres{position:absolute;left:0;right:0;top:calc(100% + 8px)}}
 .hero .primary,.hero .secondary{box-shadow:none}
+
+/* Cash Radar — Smart Cash Radar UI/UX upgrade: premium glass card, refined rings/markers, connected match list, micro-interactions. Visual only — no functional, data or navigation changes. */
+.radar-wrap{position:relative;overflow:hidden;background:linear-gradient(175deg,rgba(19,28,46,.74),rgba(7,10,18,.92));border:1px solid rgba(126,231,255,.14);border-radius:28px;box-shadow:0 26px 70px rgba(0,0,0,.36),inset 0 1px rgba(255,255,255,.05);backdrop-filter:blur(20px) saturate(1.15);-webkit-backdrop-filter:blur(20px) saturate(1.15)}
+.radar-wrap:before{content:"";position:absolute;inset:-45% -15% auto -15%;height:55%;background:radial-gradient(circle,rgba(52,224,161,.09),transparent 70%);pointer-events:none;filter:blur(6px)}
+.radar-title-row{display:flex;align-items:center;gap:8px}
+.live-badge{display:inline-flex;align-items:center;gap:5px;font:700 8px "Space Grotesk";letter-spacing:.12em;color:#34e0a1;background:rgba(52,224,161,.08);border:1px solid rgba(52,224,161,.28);padding:3px 7px 3px 6px;border-radius:99px}
+.live-badge i{width:5px;height:5px;border-radius:50%;background:#34e0a1;box-shadow:0 0 6px rgba(52,224,161,.9)}
+@media(prefers-reduced-motion:no-preference){.live-badge i{animation:livePulse 1.8s ease-in-out infinite}}
+@keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
+.radar-canvas-wrap{position:relative;border-radius:22px;overflow:hidden}
+#radar{width:100%;height:auto;aspect-ratio:1;display:block;border-radius:22px;transition:filter .2s ease}
+#radar:hover{filter:brightness(1.04)}
+.radar-toolbar button{transition:border-color .2s ease,color .2s ease,transform .15s ease}
+.radar-toolbar button:hover{border-color:rgba(52,224,161,.4);color:#eef2ff}
+.radar-toolbar button:active{transform:scale(.96)}
+.radar-meta span{padding:4px 9px;border:1px solid rgba(255,255,255,.06);border-radius:99px;background:rgba(255,255,255,.02)}
+.legend{transition:opacity .2s ease}
+.rad button{border-radius:99px;transition:border-color .2s ease,color .2s ease,background .2s ease,transform .15s ease,box-shadow .2s ease}
+.rad button.sel{background:linear-gradient(135deg,rgba(52,224,161,.18),rgba(76,201,240,.13));border-color:rgba(52,224,161,.55);color:#eef2ff;box-shadow:inset 0 0 0 1px rgba(52,224,161,.15),0 6px 18px rgba(52,224,161,.10)}
+.rad button:hover{border-color:rgba(126,231,255,.4)}
+.rad button:active{transform:scale(.96)}
+.radar-wrap+.label{position:relative;margin-top:14px}
+.radar-wrap+.label:before{content:"";position:absolute;left:50%;top:-24px;width:1px;height:16px;background:linear-gradient(180deg,rgba(76,201,240,.4),transparent);transform:translateX(-50%)}
+.match{border-radius:16px;transition:transform .2s cubic-bezier(.4,0,.2,1),border-color .2s ease,background-color .2s ease}
+.match:hover{transform:translateY(-2px);border-color:rgba(76,201,240,.26);background:rgba(19,27,44,.85)}
+.match .primary.small,.match .secondary.small{transition:transform .15s ease,filter .15s ease}
+.match .primary.small:active,.match .secondary.small:active{transform:scale(.95)}
+.match.flash{animation:matchFlash 1.5s ease}
+@keyframes matchFlash{25%{border-color:#34e0a1;box-shadow:0 0 0 3px rgba(52,224,161,.22)}}
+.empty{border-radius:20px;border-color:rgba(126,231,255,.18);background:rgba(126,231,255,.02)}
+.mobile-nav button{transition:color .2s ease,transform .15s ease}
+.mobile-nav button:active{transform:scale(.92)}
+.mobile-nav button.active{position:relative}
+.mobile-nav button.active:after{content:"";position:absolute;top:-6px;width:4px;height:4px;border-radius:50%;background:#34e0a1;box-shadow:0 0 6px rgba(52,224,161,.8)}
+@media(max-width:560px){.radar-canvas-wrap{border-radius:18px}}
+@media(prefers-reduced-motion:reduce){#radar{filter:none!important}.match:hover,.radar-toolbar button:hover{transform:none}}
+
+/* Global touch & interaction responsiveness upgrade: instant tap feedback, no accidental double-tap zoom,
+   a top progress bar so every tap shows something is happening right away, and no iOS input-zoom jump. */
+#pbar{position:fixed;top:0;left:0;height:3px;width:0;z-index:60;background:linear-gradient(90deg,#34e0a1,#4cc9f0);opacity:0;pointer-events:none;box-shadow:0 0 8px rgba(52,224,161,.5)}
+#pbar.on{opacity:1;width:72%;transition:width 6s cubic-bezier(.15,.7,.3,1),opacity .15s ease}
+#pbar.on.done{width:100%;transition:width .2s ease,opacity .2s ease .15s;opacity:0}
+html{-webkit-tap-highlight-color:transparent}
+button,.nav button,.mobile-nav button,.match,.opts button,.icon{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.primary,.secondary{transition:transform .12s ease,filter .15s ease,border-color .15s ease,opacity .15s ease}
+.primary:active,.secondary:active{transform:scale(.96)}
+.icon:active,.nav button:active{transform:scale(.94)}
+.opts button:active{transform:scale(.95)}
+body.busy .primary:not(.locked),body.busy .secondary:not(.locked){opacity:.72;pointer-events:none}
+body.busy .nav,body.busy .mobile-nav,body.busy .back{pointer-events:auto}
+@media(max-width:900px){.field input,.amount input,.search input,#pincode{font-size:16px}}
+@media(prefers-reduced-motion:reduce){#pbar.on{transition:opacity .15s ease}.primary:active,.secondary:active,.icon:active,.nav button:active,.opts button:active{transform:none}}
