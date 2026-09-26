@@ -35,13 +35,20 @@ This build adds a read-only admin endpoint for the separate Near Cash Admin Dash
 
 ### Cloudflare setup
 
-1. In the Near Cash Worker **Production** environment, add a secret named `ADMIN_ANALYTICS_KEY`.
+1. In the Near Cash Worker **Production** environment, add a secret named exactly `ADMIN_ANALYTICS_KEY` (Workers & Pages → near-cash → Settings → **Variables and Secrets** → Add → type **Secret**, not "Text"/plaintext Variable).
 2. Use a long random value as the secret. Do not commit it to GitHub.
-3. Deploy the Worker **after** saving the secret.
-4. Verify `GET /api/admin/status` returns `configured: true` (it never returns the secret value).
+3. Click **Deploy** in that same Variables and Secrets screen (Cloudflare requires this even for secret-only changes — it's a separate step from saving the value).
+4. Verify with a plain GET request (no key needed) to `https://<your-worker>.workers.dev/api/admin/status`. It must return `"configured":true`.
+
+**If it still says `"configured":false` after that:**
+- Open the same URL again and look at the new `presentAdminBindings` field in the response. If it lists a name (e.g. a different case or a stray space), that's the actual saved name — fix it to exactly `ADMIN_ANALYTICS_KEY`. If the list is empty, the secret genuinely never reached this Worker.
+- Confirm you edited the **same** Worker service this URL belongs to — if you have more than one Worker (e.g. one created via the dashboard's Quick Edit and one deployed by `wrangler deploy` from this repo), the secret has to be on the one actually serving `/api/admin/status`. The Worker name is `near-cash` per `wrangler.jsonc`.
+- Confirm you added it under **Production**, not **Preview** — Preview secrets are not visible to the live `*.workers.dev` deployment.
+- If you added it as a Variable (plaintext) instead of a Secret, or via a Secrets Store binding rather than a classic Worker secret, the binding name won't be readable the same way — recreate it as a classic **Secret**.
+- After fixing the name/environment, re-run `npx wrangler deploy` from this project (or click Deploy again in the dashboard) — the Worker only picks up the change after that.
 5. In the separate `near-cash-admin` repository, set the API base to this Worker URL (for example, `https://your-worker.workers.dev`).
 6. Open the admin dashboard and enter the same admin key.
 
-The dashboard calls `GET /api/admin/summary` with `X-Admin-Key`. For troubleshooting, `GET /api/admin/status` reports only whether a supported admin secret binding is present; it never exposes the secret value. The Worker accepts the primary `ADMIN_ANALYTICS_KEY` binding and the legacy aliases `ADMIN_ANALYTICS_K` and `ADMIN_KEY`. The endpoint reads existing D1 data and returns privacy-safe aggregate statistics.
+The dashboard calls `GET /api/admin/summary` with `X-Admin-Key`. For troubleshooting, `GET /api/admin/status` reports only whether a supported admin secret binding is present, plus (new) the *names* of any admin/analytics-looking bindings it can see — it never exposes the secret value itself. The Worker accepts the primary `ADMIN_ANALYTICS_KEY` binding and the legacy aliases `ADMIN_ANALYTICS_K` and `ADMIN_KEY`. The endpoint reads existing D1 data and returns privacy-safe aggregate statistics.
 
 The endpoint supports CORS for the separate dashboard and does not expose phone numbers, session tokens, PINs, message text, or exact user locations.
