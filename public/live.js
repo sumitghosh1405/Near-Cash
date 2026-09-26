@@ -1,12 +1,12 @@
 // Live layer: sign-in, radar, chat, reports. Loaded after app.js and replaces its demo screens.
-const S={token:'',me:null,items:[],mine:[],threads:[],thread:null,tinfo:null,msgs:[],radius:3,loc:null,geo:'',step:'phone',phone:'',name:'',dev:'',err:'',draft:'',report:false,pinCode:'',post:null,lastPost:0,view:'radar',acc:0,heading:0,compass:false,radarFrame:0,lastRefresh:0};
+const S={token:'',me:null,items:[],mine:[],threads:[],thread:null,tinfo:null,msgs:[],radius:3,loc:null,geo:'',step:'phone',phone:'',name:'',dev:'',err:'',draft:'',report:false,pinCode:'',post:null,lastPost:0,view:'radar',acc:0,heading:0,compass:false,radarFrame:0,lastRefresh:0,streamAbort:null,streamRun:0};
 try{S.token=localStorage.getItem('nc_token')||''}catch{}
 state.offers=[];state.requests=[];state.tx=[];
 let _pending=0;
 function _busy(on){_pending=Math.max(0,_pending+(on?1:-1));document.body.classList.toggle('busy',_pending>0);const b=document.getElementById('pbar');if(!b)return;if(on){b.classList.remove('done');b.classList.add('on')}else if(_pending===0){b.classList.add('done');setTimeout(()=>{if(_pending===0)b.classList.remove('on','done')},220)}}
 async function api(p,b,quiet){if(!quiet)_busy(1);try{const r=await fetch('/api/'+p,{method:b?'POST':'GET',headers:{'Content-Type':'application/json',...(S.token?{Authorization:'Bearer '+S.token}:{})},body:b?JSON.stringify(b):undefined});const j=await r.json().catch(()=>({}));if(r.status===401&&S.token){logout();throw new Error('Please sign in again')}if(!r.ok){const e=new Error(j.error||'Something went wrong');e.status=r.status;throw e}return j}finally{if(!quiet)_busy(0)}}
 const fail=e=>toast(e.message),authErr=m=>{S.err=m;render()};
-function logout(){S.token='';S.me=null;S.thread=null;try{localStorage.removeItem('nc_token')}catch{}S.es&&S.es.close();autoGuest()}
+function logout(){S.token='';S.me=null;S.thread=null;S.streamRun++;try{S.streamAbort&&S.streamAbort.abort()}catch{}S.streamAbort=null;try{localStorage.removeItem('nc_token')}catch{}autoGuest()}
 function splash(){return '<div class="auth"><div class="auth-card" style="text-align:center;background:none;border:0;box-shadow:none"><img onerror="this.style.visibility=\'hidden\'" class="logo" style="width:64px;height:64px;margin:auto" src="'+LOGO+'" alt="Near Cash"><p>Getting things ready…</p></div></div>'}
 async function autoGuest(){S.booting=true;render();try{const j=await api('guest',{});S.token=j.token;S.me=j.me;S.guest=true;try{localStorage.setItem('nc_token',j.token);localStorage.setItem('nc_guest','1')}catch{}S.booting=false;boot()}catch(e){S.booting=false;S.guest=false;S.err=e.status===403?'':e.message;render()}}
 async function saveProfile(){const n=(document.getElementById('pname')?.value||'').trim().slice(0,40);if(!n)return toast('Enter a name.');try{await api('profile',{name:n});state.profile.name=n;if(S.me)S.me.name=n;persist();toast('Profile saved.')}catch(e){fail(e)}}
@@ -17,7 +17,25 @@ function boot(){state.profile.name=S.me.name;state.screen='home';connect();start
 function setRadius(k){S.radius=k;render();refresh()}
 async function refresh(quiet){try{const[n,t,nf]=await Promise.all([api('nearby?r='+S.radius,undefined,quiet),api('threads',undefined,quiet),api('notifications',undefined,quiet)]);S.items=n.items;S.mine=n.mine;S.threads=t.items;gotNotifs(nf);S.lastRefresh=Date.now();state.offers=S.items.filter(x=>x.type==='have').map(x=>({status:'open',expires:Infinity}));state.requests=S.items.filter(x=>x.type==='need').map(x=>({status:'open'}));state.tx=S.threads;
   if(['home','find','live'].includes(state.screen)||(state.screen==='activity'&&!S.thread))render()}catch{}}
-function connect(){S.es&&S.es.close();S.es=new EventSource('/api/stream?token='+S.token);S.es.onmessage=e=>{const j=JSON.parse(e.data);if(j.t==='msg'){if(S.thread===j.threadId){S.msgs.push(j.msg);render();scrollChat()}else toast('New message from '+j.from);refresh(true)}else refresh(true)}}
+async function connect(){
+  const run=++S.streamRun;
+  try{S.streamAbort&&S.streamAbort.abort()}catch{}
+  const controller=new AbortController();S.streamAbort=controller;
+  const handle=(j)=>{if(j.t==='msg'){if(S.thread===j.threadId){S.msgs.push(j.msg);render();scrollChat()}else toast('New message from '+j.from);refresh(true)}else refresh(true)};
+  try{
+    const r=await fetch('/api/stream',{headers:{Authorization:'Bearer '+S.token,Accept:'text/event-stream'},cache:'no-store',signal:controller.signal});
+    if(r.status===401){if(run===S.streamRun)logout();return;}
+    if(!r.ok||!r.body)throw new Error('Live connection failed');
+    const reader=r.body.getReader(),decoder=new TextDecoder();let buffer='';
+    while(run===S.streamRun){
+      const part=await reader.read();if(part.done)break;buffer+=decoder.decode(part.value,{stream:true});
+      const frames=buffer.split(/\n\n/);buffer=frames.pop()||'';
+      for(const frame of frames){const line=frame.split(/\n/).find(x=>x.startsWith('data:'));if(!line)continue;try{handle(JSON.parse(line.slice(5).trim()))}catch{}}
+    }
+    try{reader.cancel()}catch{}
+  }catch(e){if(e&&e.name==='AbortError')return;}
+  if(run===S.streamRun&&S.token&&!document.hidden)setTimeout(()=>{if(run===S.streamRun)connect()},3000);
+}
 function startGeo(){if(!navigator.geolocation){S.geo='off';return}navigator.geolocation.watchPosition(p=>{const first=!S.loc;S.loc={lat:p.coords.latitude,lng:p.coords.longitude};S.acc=p.coords.accuracy;S.geo='ok';if(first||Date.now()-S.lastPost>15000){S.lastPost=Date.now();api('location',S.loc,true).then(()=>first&&refresh()).catch(()=>{})}},()=>{S.geo='off';render()},{enableHighAccuracy:true,maximumAge:5000,timeout:15000})}
 const geoMsg=()=>{if(S.geo==='off')return 'Location is off. Allow location to see people nearby.';if(S.geo==='ok'){const a=S.acc?`GPS ±${Math.max(1,Math.round(S.acc))} m`:'GPS active';return `${a} · directions are geographic bearings from your location.`}return 'Finding your location…'};
 const dir8=b=>['N','NE','E','SE','S','SW','W','NW'][Math.round(((Number(b)||0)%360)/45)%8];
