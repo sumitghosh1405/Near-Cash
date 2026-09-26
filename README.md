@@ -27,3 +27,20 @@ Sign-in codes: add the text variable DEV_OTP=true (Workers > Settings > Variable
 
 ## Google Maps view
 Open config.js, paste your Google Maps JavaScript API key between the quotes, and redeploy. In Google Cloud, restrict the key to your website address. Without a key the Map tab shows a setup note and the radar still works.
+
+
+## Admin analytics dashboard
+
+This build adds a read-only admin endpoint for the separate Near Cash Admin Dashboard. It does not change the normal app routes or UI.
+
+### Cloudflare setup
+
+1. In the Near Cash Worker, add a secret named `ADMIN_ANALYTICS_KEY`.
+2. Use a long random value as the secret. Do not commit it to GitHub.
+3. Deploy this Worker.
+4. In the separate `near-cash-admin` repository, set the API base to this Worker URL (for example, `https://your-worker.workers.dev`).
+5. Open the admin dashboard and enter the same admin key.
+
+The dashboard calls `GET /api/admin/summary` with `X-Admin-Key`. The endpoint reads existing D1 data and returns privacy-safe aggregate statistics.
+
+The endpoint supports CORS for the separate dashboard and does not expose phone numbers, session tokens, PINs, message text, or exact user locations.
