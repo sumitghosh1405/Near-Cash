@@ -52,3 +52,10 @@ This build adds a read-only admin endpoint for the separate Near Cash Admin Dash
 The dashboard calls `GET /api/admin/summary` with `X-Admin-Key`. For troubleshooting, `GET /api/admin/status` reports only whether a supported admin secret binding is present, plus (new) the *names* of any admin/analytics-looking bindings it can see — it never exposes the secret value itself. The Worker accepts the primary `ADMIN_ANALYTICS_KEY` binding and the legacy aliases `ADMIN_ANALYTICS_K` and `ADMIN_KEY`. The endpoint reads existing D1 data and returns privacy-safe aggregate statistics.
 
 The endpoint supports CORS for the separate dashboard and does not expose phone numbers, session tokens, PINs, message text, or exact user locations.
+
+
+## Security hardening (v10)
+
+The Worker now applies API rate limiting, strict Bearer-token authentication for authenticated API requests, security response headers, production-safe error responses with request IDs, race-safe listing claiming and meetup-PIN completion, and authenticated streaming without putting the session token in the stream URL.
+
+`ADMIN_ORIGIN` is an optional Worker environment variable. If set, browser access to the admin analytics API is restricted to that exact origin. Existing deployments without it retain the previous cross-origin behavior for compatibility; the admin key is still required for analytics data.

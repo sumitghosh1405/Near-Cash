@@ -76,6 +76,16 @@ CREATE TABLE IF NOT EXISTS blocks (
   who_uid TEXT NOT NULL,
   PRIMARY KEY(by_uid, who_uid)
 );
+CREATE TABLE IF NOT EXISTS abuse_limits (
+  uid TEXT NOT NULL,
+  action TEXT NOT NULL,
+  window_start INTEGER NOT NULL,
+  count INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY(uid, action, window_start),
+  FOREIGN KEY(uid) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_abuse_limits_uid ON abuse_limits(uid, action, window_start);
+
 CREATE TABLE IF NOT EXISTS notifications (
   id TEXT PRIMARY KEY,
   uid TEXT NOT NULL,
