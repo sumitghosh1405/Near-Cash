@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 
-const SCHEMA=["CREATE TABLE IF NOT EXISTS users (\n  id TEXT PRIMARY KEY,\n  phone TEXT NOT NULL UNIQUE,\n  name TEXT NOT NULL,\n  done INTEGER NOT NULL DEFAULT 0,\n  lat REAL,\n  lng REAL,\n  at INTEGER,\n  created INTEGER NOT NULL\n)", "CREATE TABLE IF NOT EXISTS sessions (\n  token_hash TEXT PRIMARY KEY,\n  uid TEXT NOT NULL,\n  exp INTEGER NOT NULL,\n  FOREIGN KEY(uid) REFERENCES users(id) ON DELETE CASCADE\n)", "CREATE INDEX IF NOT EXISTS idx_sessions_exp ON sessions(exp)", "CREATE TABLE IF NOT EXISTS otps (\n  phone TEXT PRIMARY KEY,\n  hash TEXT NOT NULL,\n  exp INTEGER NOT NULL,\n  tries INTEGER NOT NULL DEFAULT 0\n)", "CREATE TABLE IF NOT EXISTS listings (\n  id TEXT PRIMARY KEY,\n  uid TEXT NOT NULL,\n  type TEXT NOT NULL CHECK(type IN ('have','need')),\n  amount INTEGER NOT NULL,\n  exp INTEGER NOT NULL,\n  status TEXT NOT NULL DEFAULT 'open',\n  FOREIGN KEY(uid) REFERENCES users(id) ON DELETE CASCADE\n)", "CREATE INDEX IF NOT EXISTS idx_listings_open ON listings(status, exp)", "CREATE INDEX IF NOT EXISTS idx_listings_uid ON listings(uid)", "CREATE TABLE IF NOT EXISTS threads (\n  id TEXT PRIMARY KEY,\n  lid TEXT NOT NULL,\n  amount INTEGER NOT NULL,\n  type TEXT NOT NULL,\n  a TEXT NOT NULL,\n  b TEXT NOT NULL,\n  status TEXT NOT NULL DEFAULT 'open',\n  confirmed TEXT NOT NULL DEFAULT '[]',\n  created INTEGER NOT NULL,\n  pin_hash TEXT,\n  pin_by TEXT,\n  pin_exp INTEGER,\n  pin_tries INTEGER NOT NULL DEFAULT 0,\n  pin_verified INTEGER NOT NULL DEFAULT 0,\n  FOREIGN KEY(a) REFERENCES users(id) ON DELETE CASCADE,\n  FOREIGN KEY(b) REFERENCES users(id) ON DELETE CASCADE\n)", "CREATE INDEX IF NOT EXISTS idx_threads_user_a ON threads(a, created)", "CREATE INDEX IF NOT EXISTS idx_threads_user_b ON threads(b, created)", "CREATE TABLE IF NOT EXISTS messages (\n  id TEXT PRIMARY KEY,\n  tid TEXT NOT NULL,\n  from_uid TEXT NOT NULL,\n  text TEXT NOT NULL,\n  at INTEGER NOT NULL,\n  FOREIGN KEY(tid) REFERENCES threads(id) ON DELETE CASCADE,\n  FOREIGN KEY(from_uid) REFERENCES users(id) ON DELETE CASCADE\n)", "CREATE INDEX IF NOT EXISTS idx_messages_tid ON messages(tid, at)", "CREATE TABLE IF NOT EXISTS reports (\n  id TEXT PRIMARY KEY,\n  by_uid TEXT NOT NULL,\n  who_uid TEXT NOT NULL,\n  tid TEXT NOT NULL,\n  reason TEXT NOT NULL,\n  at INTEGER NOT NULL,\n  last_json TEXT NOT NULL\n)", "CREATE TABLE IF NOT EXISTS blocks (\n  by_uid TEXT NOT NULL,\n  who_uid TEXT NOT NULL,\n  PRIMARY KEY(by_uid, who_uid)\n)", "CREATE TABLE IF NOT EXISTS abuse_limits (\n  uid TEXT NOT NULL,\n  action TEXT NOT NULL,\n  window_start INTEGER NOT NULL,\n  count INTEGER NOT NULL DEFAULT 0,\n  PRIMARY KEY(uid, action, window_start),\n  FOREIGN KEY(uid) REFERENCES users(id) ON DELETE CASCADE\n)", "CREATE INDEX IF NOT EXISTS idx_abuse_limits_uid ON abuse_limits(uid, action, window_start)", "CREATE TABLE IF NOT EXISTS notifications (\n  id TEXT PRIMARY KEY,\n  uid TEXT NOT NULL,\n  kind TEXT NOT NULL,\n  text TEXT NOT NULL,\n  ref TEXT,\n  at INTEGER NOT NULL,\n  read INTEGER NOT NULL DEFAULT 0,\n  FOREIGN KEY(uid) REFERENCES users(id) ON DELETE CASCADE\n)", "CREATE INDEX IF NOT EXISTS idx_notifications_uid ON notifications(uid, at)"];
+const SCHEMA=["CREATE TABLE IF NOT EXISTS users (\n  id TEXT PRIMARY KEY,\n  phone TEXT NOT NULL UNIQUE,\n  name TEXT NOT NULL,\n  done INTEGER NOT NULL DEFAULT 0,\n  lat REAL,\n  lng REAL,\n  at INTEGER,\n  created INTEGER NOT NULL\n)", "CREATE TABLE IF NOT EXISTS sessions (\n  token_hash TEXT PRIMARY KEY,\n  uid TEXT NOT NULL,\n  exp INTEGER NOT NULL,\n  FOREIGN KEY(uid) REFERENCES users(id) ON DELETE CASCADE\n)", "CREATE INDEX IF NOT EXISTS idx_sessions_exp ON sessions(exp)", "CREATE TABLE IF NOT EXISTS otps (\n  phone TEXT PRIMARY KEY,\n  hash TEXT NOT NULL,\n  exp INTEGER NOT NULL,\n  tries INTEGER NOT NULL DEFAULT 0\n)", "CREATE TABLE IF NOT EXISTS listings (\n  id TEXT PRIMARY KEY,\n  uid TEXT NOT NULL,\n  type TEXT NOT NULL CHECK(type IN ('have','need')),\n  amount INTEGER NOT NULL,\n  exp INTEGER NOT NULL,\n  status TEXT NOT NULL DEFAULT 'open',\n  FOREIGN KEY(uid) REFERENCES users(id) ON DELETE CASCADE\n)", "CREATE INDEX IF NOT EXISTS idx_listings_open ON listings(status, exp)", "CREATE INDEX IF NOT EXISTS idx_listings_uid ON listings(uid)", "CREATE TABLE IF NOT EXISTS threads (\n  id TEXT PRIMARY KEY,\n  lid TEXT NOT NULL,\n  amount INTEGER NOT NULL,\n  type TEXT NOT NULL,\n  a TEXT NOT NULL,\n  b TEXT NOT NULL,\n  status TEXT NOT NULL DEFAULT 'open',\n  confirmed TEXT NOT NULL DEFAULT '[]',\n  created INTEGER NOT NULL,\n  pin_hash TEXT,\n  pin_by TEXT,\n  pin_exp INTEGER,\n  pin_tries INTEGER NOT NULL DEFAULT 0,\n  pin_verified INTEGER NOT NULL DEFAULT 0,\n  FOREIGN KEY(a) REFERENCES users(id) ON DELETE CASCADE,\n  FOREIGN KEY(b) REFERENCES users(id) ON DELETE CASCADE\n)", "CREATE INDEX IF NOT EXISTS idx_threads_user_a ON threads(a, created)", "CREATE INDEX IF NOT EXISTS idx_threads_user_b ON threads(b, created)", "CREATE TABLE IF NOT EXISTS messages (\n  id TEXT PRIMARY KEY,\n  tid TEXT NOT NULL,\n  from_uid TEXT NOT NULL,\n  text TEXT NOT NULL,\n  at INTEGER NOT NULL,\n  FOREIGN KEY(tid) REFERENCES threads(id) ON DELETE CASCADE,\n  FOREIGN KEY(from_uid) REFERENCES users(id) ON DELETE CASCADE\n)", "CREATE INDEX IF NOT EXISTS idx_messages_tid ON messages(tid, at)", "CREATE TABLE IF NOT EXISTS reports (\n  id TEXT PRIMARY KEY,\n  by_uid TEXT NOT NULL,\n  who_uid TEXT NOT NULL,\n  tid TEXT NOT NULL,\n  reason TEXT NOT NULL,\n  at INTEGER NOT NULL,\n  last_json TEXT NOT NULL\n)", "CREATE TABLE IF NOT EXISTS blocks (\n  by_uid TEXT NOT NULL,\n  who_uid TEXT NOT NULL,\n  PRIMARY KEY(by_uid, who_uid)\n)", "CREATE TABLE IF NOT EXISTS abuse_limits (\n  uid TEXT NOT NULL,\n  action TEXT NOT NULL,\n  window_start INTEGER NOT NULL,\n  count INTEGER NOT NULL DEFAULT 0,\n  PRIMARY KEY(uid, action, window_start),\n  FOREIGN KEY(uid) REFERENCES users(id) ON DELETE CASCADE\n)", "CREATE INDEX IF NOT EXISTS idx_abuse_limits_uid ON abuse_limits(uid, action, window_start)", "CREATE TABLE IF NOT EXISTS notifications (\n  id TEXT PRIMARY KEY,\n  uid TEXT NOT NULL,\n  kind TEXT NOT NULL,\n  text TEXT NOT NULL,\n  ref TEXT,\n  at INTEGER NOT NULL,\n  read INTEGER NOT NULL DEFAULT 0,\n  FOREIGN KEY(uid) REFERENCES users(id) ON DELETE CASCADE\n)", "CREATE INDEX IF NOT EXISTS idx_notifications_uid ON notifications(uid, at)", "CREATE TABLE IF NOT EXISTS observability_events (\n  id TEXT PRIMARY KEY,\n  at INTEGER NOT NULL,\n  kind TEXT NOT NULL,\n  route TEXT NOT NULL,\n  status INTEGER NOT NULL,\n  request_id TEXT NOT NULL,\n  message TEXT NOT NULL\n)", "CREATE INDEX IF NOT EXISTS idx_observability_at ON observability_events(at)", "CREATE INDEX IF NOT EXISTS idx_observability_kind_at ON observability_events(kind, at)", "CREATE TABLE IF NOT EXISTS analytics_events (\n  id TEXT PRIMARY KEY,\n  at INTEGER NOT NULL,\n  event TEXT NOT NULL,\n  client_id TEXT NOT NULL,\n  screen TEXT,\n  meta_json TEXT NOT NULL DEFAULT '{}'\n)", "CREATE INDEX IF NOT EXISTS idx_analytics_at ON analytics_events(at)", "CREATE INDEX IF NOT EXISTS idx_analytics_event_at ON analytics_events(event, at)", "CREATE INDEX IF NOT EXISTS idx_users_at ON users(at)", "CREATE INDEX IF NOT EXISTS idx_listings_exp_status ON listings(status, exp)", "CREATE INDEX IF NOT EXISTS idx_threads_status_created ON threads(status, created)", "CREATE INDEX IF NOT EXISTS idx_notifications_uid_read_at ON notifications(uid, read, at)", "CREATE INDEX IF NOT EXISTS idx_reports_by_tid_at ON reports(by_uid, tid, at)"];
 let schemaReady=false;
 // Column additions for DBs created before the meetup-PIN feature existed. SQLite has no
 // "ADD COLUMN IF NOT EXISTS", so these are run one at a time and a "duplicate column" failure
@@ -22,6 +22,16 @@ const securityHeaders={"X-Content-Type-Options":"nosniff","X-Frame-Options":"DEN
 const json = (o, status=200, extra={}) => new Response(JSON.stringify(o), {status, headers:{"Content-Type":"application/json; charset=utf-8", ...securityHeaders, ...extra}});
 const err = (m,c=400) => { const e=new Error(m); e.status=c; throw e; };
 const id = () => crypto.randomUUID().replaceAll("-", "").slice(0,16);
+const requestId = () => crypto.randomUUID();
+const safeObsMessage = value => String(value||"").replace(/[\r\n\t]+/g," ").replace(/\s{2,}/g," ").slice(0,240);
+async function recordObs(env,{kind,route,status,requestId,message}){
+  try{
+    await env.DB.prepare("INSERT INTO observability_events(id,at,kind,route,status,request_id,message) VALUES(?,?,?,?,?,?,?)")
+      .bind(id(),Date.now(),String(kind||"unknown").slice(0,40),String(route||"/").slice(0,160),Number(status||500),String(requestId||"").slice(0,80),safeObsMessage(message)).run();
+    // Keep the operational event table bounded without making every request pay a cleanup cost.
+    if(Math.random()<0.01) await env.DB.prepare("DELETE FROM observability_events WHERE at<?").bind(Date.now()-30*86400000).run().catch(()=>{});
+  }catch(e){ console.error("observability",e&&e.message||e); }
+}
 async function sha(s){ const b=await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(s))); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join(""); }
 const escPhone = s => String(s||"").replace(/[\s-]/g,"");
 const rad = x => x*Math.PI/180;
@@ -36,11 +46,11 @@ async function sendSms(env,to,code){
 const u=env.SMS_WEBHOOK_URL;if(!u)err("SMS provider not configured",501);const r=await fetch(u,{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+(env.SMS_WEBHOOK_TOKEN||"")},body:JSON.stringify({to,message:"Your Near Cash code is "+code})});if(!r.ok)err("Could not send the code",502);}
 async function getUser(env,req){
   const auth=String(req.headers.get("Authorization")||"");
-  if(!/^Bearer\s+[^\s]+$/i.test(auth))err("Please sign in",401);
+  if(!/^Bearer\s+[^\s]+$/i.test(auth)){await recordObs(env,{kind:"auth_failure",route:"/api/authenticated",status:401,requestId:requestId(),message:"Missing or malformed Bearer token"});err("Please sign in",401);}
   const tok=auth.replace(/^Bearer\s+/i,"").trim();
   const h=await sha(tok);
   const r=await env.DB.prepare("SELECT u.* FROM sessions s JOIN users u ON u.id=s.uid WHERE s.token_hash=? AND s.exp>? LIMIT 1").bind(h,Date.now()).first();
-  if(!r){await env.DB.prepare("DELETE FROM sessions WHERE token_hash=?").bind(h).run().catch(()=>{});err("Please sign in",401);}
+  if(!r){await env.DB.prepare("DELETE FROM sessions WHERE token_hash=?").bind(h).run().catch(()=>{});await recordObs(env,{kind:"auth_failure",route:"/api/authenticated",status:401,requestId:requestId(),message:"Expired or invalid session"});err("Please sign in",401);}
   return {u:r,tok,h};
 }
 async function blocked(env,a,b){return !!await env.DB.prepare("SELECT 1 FROM blocks WHERE (by_uid=? AND who_uid=?) OR (by_uid=? AND who_uid=?) LIMIT 1").bind(a,b,b,a).first();}
@@ -88,6 +98,62 @@ const adminEnvHints = (env) => {
     return {matches:[...keys].filter(k=>/ADMIN|ANALYTICS/i.test(k)).sort(), totalBindings:keys.size};
   } catch { return {matches:[], totalBindings:0}; }
 };
+async function analyticsEvent(env,req,b){
+  if(req.method!=="POST")return json({error:"Method not allowed"},405);
+  const event=String(b.event||"").trim().slice(0,50);
+  const clientId=String(b.clientId||"").trim().slice(0,80);
+  const screen=String(b.screen||"").trim().slice(0,60);
+  const allowed=new Set(["page_view","need_cash_opened","have_cash_opened","post_created","matches_viewed","match_requested","match_accepted","activity_viewed","exchange_confirmed","safety_viewed","profile_viewed","location_enabled","search_used"]);
+  if(!allowed.has(event)||!/^[A-Za-z0-9_-]{16,80}$/.test(clientId))return json({error:"Invalid analytics event"},400);
+  let meta={};
+  if(b.meta&&typeof b.meta==="object"&&!Array.isArray(b.meta)){
+    for(const k of Object.keys(b.meta).slice(0,8)){const v=b.meta[k];if(["string","number","boolean"].includes(typeof v))meta[String(k).slice(0,30)]=typeof v==="string"?v.slice(0,80):v;}
+  }
+  await env.DB.prepare("INSERT INTO analytics_events(id,at,event,client_id,screen,meta_json) VALUES(?,?,?,?,?,?)").bind(id(),Date.now(),event,clientId,screen,JSON.stringify(meta)).run();
+  if(Math.random()<0.02)await env.DB.prepare("DELETE FROM analytics_events WHERE at<?").bind(Date.now()-90*86400000).run().catch(()=>{});
+  return json({ok:true},201);
+}
+async function privacyExport(env,req,u){
+  if(req.method!=="GET")return json({error:"Method not allowed"},405);
+  const [profile,listings,threads,notifications,reports,blocks] = await Promise.all([
+    env.DB.prepare("SELECT id,phone,name,done,created,lat,lng,at FROM users WHERE id=?").bind(u.id).first(),
+    env.DB.prepare("SELECT id,type,amount,exp,status FROM listings WHERE uid=? ORDER BY exp DESC LIMIT 200").bind(u.id).all(),
+    env.DB.prepare("SELECT id,lid,amount,type,status,confirmed,created,pin_exp,pin_verified FROM threads WHERE a=? OR b=? ORDER BY created DESC LIMIT 200").bind(u.id,u.id).all(),
+    env.DB.prepare("SELECT id,kind,text,ref,at,read FROM notifications WHERE uid=? ORDER BY at DESC LIMIT 200").bind(u.id).all(),
+    env.DB.prepare("SELECT id,who_uid,tid,reason,at FROM reports WHERE by_uid=? ORDER BY at DESC LIMIT 200").bind(u.id).all(),
+    env.DB.prepare("SELECT who_uid FROM blocks WHERE by_uid=? ORDER BY who_uid LIMIT 200").bind(u.id).all()
+  ]);
+  return json({ok:true,exportedAt:Date.now(),account:profile||null,listings:listings.results||[],threads:threads.results||[],notifications:notifications.results||[],reports:reports.results||[],blocks:blocks.results||[]});
+}
+async function privacyLocationDelete(env,req,u){
+  if(req.method!=="POST")return json({error:"Method not allowed"},405);
+  await env.DB.prepare("UPDATE users SET lat=NULL,lng=NULL,at=NULL WHERE id=?").bind(u.id).run();
+  return json({ok:true});
+}
+async function privacyDelete(env,req,u,b){
+  if(req.method!=="POST")return json({error:"Method not allowed"},405);
+  if(String(b.confirm||"")!=="DELETE")err('Type DELETE to permanently remove your Near Cash account',400);
+  const tids=await env.DB.prepare("SELECT id FROM threads WHERE a=? OR b=? LIMIT 200").bind(u.id,u.id).all();
+  const ids=(tids.results||[]).map(x=>String(x.id)).filter(Boolean);
+  const stmts=[];
+  if(ids.length){
+    const q=ids.map(()=>'?').join(',');
+    stmts.push(env.DB.prepare(`DELETE FROM messages WHERE tid IN (${q})`).bind(...ids));
+    stmts.push(env.DB.prepare(`DELETE FROM reports WHERE tid IN (${q})`).bind(...ids));
+    stmts.push(env.DB.prepare(`DELETE FROM threads WHERE id IN (${q})`).bind(...ids));
+  }
+  stmts.push(
+    env.DB.prepare("DELETE FROM listings WHERE uid=?").bind(u.id),
+    env.DB.prepare("DELETE FROM notifications WHERE uid=?").bind(u.id),
+    env.DB.prepare("DELETE FROM abuse_limits WHERE uid=?").bind(u.id),
+    env.DB.prepare("DELETE FROM sessions WHERE uid=?").bind(u.id),
+    env.DB.prepare("DELETE FROM blocks WHERE by_uid=? OR who_uid=?").bind(u.id,u.id),
+    env.DB.prepare("DELETE FROM reports WHERE by_uid=?").bind(u.id),
+    env.DB.prepare("DELETE FROM users WHERE id=?").bind(u.id)
+  );
+  await env.DB.batch(stmts);
+  return json({ok:true,deleted:true});
+}
 async function adminSummary(env,req){
   if(req.method === "OPTIONS") return new Response(null,{status:204,headers:{...securityHeaders,...adminCors(env,req)}});
   if(req.method !== "GET") return adminJson(env,req,{error:"Method not allowed"},405);
@@ -102,7 +168,7 @@ async function adminSummary(env,req){
   const [expectedHash,suppliedHash] = await Promise.all([sha(configured.value),sha(supplied)]);
   if(expectedHash !== suppliedHash) return adminJson(env,req,{error:"Invalid admin key"},401);
   const since=Date.now()-30*86400000;
-  const [users,newUsers,active24h,listings,threads,completed,messages,reports,locationUsers] = await Promise.all([
+  const [users,newUsers,active24h,listings,threads,completed,messages,reports,locationUsers,errors24h,errors30d,rateLimited24h,authFailures24h,analytics30d,uniqueClients30d,topAnalytics] = await Promise.all([
     env.DB.prepare("SELECT COUNT(*) AS c FROM users").first(),
     env.DB.prepare("SELECT COUNT(*) AS c FROM users WHERE created>=?").bind(since).first(),
     env.DB.prepare("SELECT COUNT(*) AS c FROM users WHERE COALESCE(at,created)>=?").bind(Date.now()-86400000).first(),
@@ -111,7 +177,14 @@ async function adminSummary(env,req){
     env.DB.prepare("SELECT COUNT(*) AS c FROM threads WHERE status='completed' AND created>=?").bind(since).first(),
     env.DB.prepare("SELECT COUNT(*) AS c FROM messages WHERE at>=?").bind(since).first(),
     env.DB.prepare("SELECT COUNT(*) AS c FROM reports WHERE at>=?").bind(since).first(),
-    env.DB.prepare("SELECT COUNT(*) AS c FROM users WHERE lat IS NOT NULL AND lng IS NOT NULL AND COALESCE(at,created)>=?").bind(since).first()
+    env.DB.prepare("SELECT COUNT(*) AS c FROM users WHERE lat IS NOT NULL AND lng IS NOT NULL AND COALESCE(at,created)>=?").bind(since).first(),
+    env.DB.prepare("SELECT COUNT(*) AS c FROM observability_events WHERE kind='server_error' AND at>=?").bind(Date.now()-86400000).first(),
+    env.DB.prepare("SELECT COUNT(*) AS c FROM observability_events WHERE kind='server_error' AND at>=?").bind(since).first(),
+    env.DB.prepare("SELECT COUNT(*) AS c FROM observability_events WHERE kind='rate_limited' AND at>=?").bind(Date.now()-86400000).first(),
+    env.DB.prepare("SELECT COUNT(*) AS c FROM observability_events WHERE kind='auth_failure' AND at>=?").bind(Date.now()-86400000).first(),
+    env.DB.prepare("SELECT COUNT(*) AS c FROM analytics_events WHERE at>=?").bind(since).first(),
+    env.DB.prepare("SELECT COUNT(DISTINCT client_id) AS c FROM analytics_events WHERE at>=?").bind(since).first(),
+    env.DB.prepare("SELECT event,COUNT(*) AS c FROM analytics_events WHERE at>=? GROUP BY event ORDER BY c DESC").bind(since).all()
   ]);
   const events = [
     {event:"sign_up",c:Number(newUsers?.c||0)},
@@ -131,26 +204,48 @@ async function adminSummary(env,req){
       UNION ALL SELECT strftime('%Y-%m-%d',at/1000,'unixepoch'), COUNT(*) FROM reports WHERE at>=? GROUP BY strftime('%Y-%m-%d',at/1000,'unixepoch')
     ) GROUP BY day ORDER BY day`).bind(since,since,since,since).all();
   const totalEvents = events.reduce((n,x)=>n+x.c,0);
-  return adminJson(env,req,{ok:true,rangeDays:30,generatedAt:Date.now(),totals:{events:totalEvents,newUsers:Number(newUsers?.c||0),activeUsers24h:Number(active24h?.c||0),completedExchanges:Number(completed?.c||0),errors:0,totalUsers:Number(users?.c||0),openListings:Number(listings?.c||0),connections:Number(threads?.c||0),messages:Number(messages?.c||0),reports:Number(reports?.c||0)},funnel:events.filter(x=>["sign_up","location_permission_granted","radar_opened","match_viewed","connection_started","exchange_completed"].includes(x.event)),events:events.filter(x=>x.c>0),topRoutes:[],daily:daily.results||[]},200);
+  return adminJson(env,req,{ok:true,rangeDays:30,generatedAt:Date.now(),totals:{events:totalEvents,newUsers:Number(newUsers?.c||0),activeUsers24h:Number(active24h?.c||0),completedExchanges:Number(completed?.c||0),errors:Number(errors30d?.c||0),totalUsers:Number(users?.c||0),openListings:Number(listings?.c||0),connections:Number(threads?.c||0),messages:Number(messages?.c||0),reports:Number(reports?.c||0)},observability:{errors24h:Number(errors24h?.c||0),errors30d:Number(errors30d?.c||0),rateLimited24h:Number(rateLimited24h?.c||0),authFailures24h:Number(authFailures24h?.c||0)},analytics:{events30d:Number(analytics30d?.c||0),uniqueClients30d:Number(uniqueClients30d?.c||0),topEvents:topAnalytics.results||[]},funnel:events.filter(x=>["sign_up","location_permission_granted","radar_opened","match_viewed","connection_started","exchange_completed"].includes(x.event)),events:events.filter(x=>x.c>0),topRoutes:[],daily:daily.results||[]},200);
 }
 async function api(env,req,p,url){
   if(p==="admin/status") {
     const rl=rateLimit("admin-status:"+clientIp(req),30,60000);
-    if(!rl.ok)return adminJson(env,req,{error:"Too many requests",retryAfter:rl.retry},429);
+    if(!rl.ok){const rid=requestId();await recordObs(env,{kind:"rate_limited",route:"/api/admin/status",status:429,requestId:rid,message:"Admin status rate limit"});return adminJson(env,req,{error:"Too many requests",retryAfter:rl.retry,requestId:rid},429);}
     if(req.method === "OPTIONS") return new Response(null,{status:204,headers:{...securityHeaders,...adminCors(env,req)}});
     if(req.method !== "GET") return adminJson(env,req,{error:"Method not allowed"},405);
     const configured = getAdminAnalyticsKey(env);
     const hints = adminEnvHints(env);
     return adminJson(env,req,{ok:true,configured:!!configured.value,source:configured.name||null,expectedNames:["ADMIN_ANALYTICS_KEY","ADMIN_ANALYTICS_K","ADMIN_KEY"],presentAdminBindings:hints.matches,totalBindings:hints.totalBindings});
   }
+  if(p==="admin/observability") {
+    const rl=rateLimit("admin-observability:"+clientIp(req),30,60000);
+    if(!rl.ok){const rid=requestId();await recordObs(env,{kind:"rate_limited",route:"/api/admin/observability",status:429,requestId:rid,message:"Admin observability rate limit"});return adminJson(env,req,{error:"Too many requests",retryAfter:rl.retry,requestId:rid},429);}
+    if(req.method === "OPTIONS") return new Response(null,{status:204,headers:{...securityHeaders,...adminCors(env,req)}});
+    if(req.method !== "GET") return adminJson(env,req,{error:"Method not allowed"},405);
+    const configured=getAdminAnalyticsKey(env);
+    if(!configured.value)return adminJson(env,req,{error:"Admin analytics is not configured"},503);
+    const supplied=String(req.headers.get("X-Admin-Key")||"");
+    const [expectedHash,suppliedHash]=await Promise.all([sha(configured.value),sha(supplied)]);
+    if(!supplied || expectedHash!==suppliedHash)return adminJson(env,req,{error:supplied?"Invalid admin key":"Admin key required"},401);
+    const since=Date.now()-24*86400000;
+    const [counts,recent]=await Promise.all([
+      env.DB.prepare("SELECT kind,COUNT(*) AS c FROM observability_events WHERE at>=? GROUP BY kind ORDER BY c DESC").bind(since).all(),
+      env.DB.prepare("SELECT at,kind,route,status,request_id AS requestId,message FROM observability_events ORDER BY at DESC LIMIT 50").all()
+    ]);
+    return adminJson(env,req,{ok:true,rangeHours:24,generatedAt:Date.now(),counts:counts.results||[],recent:recent.results||[]},200);
+  }
   if(p==="admin/summary") {
     const rl=rateLimit("admin:"+clientIp(req),30,60000);
-    if(!rl.ok)return adminJson(env,req,{error:"Too many requests",retryAfter:rl.retry},429);
+    if(!rl.ok){const rid=requestId();await recordObs(env,{kind:"rate_limited",route:"/api/admin/summary",status:429,requestId:rid,message:"Admin summary rate limit"});return adminJson(env,req,{error:"Too many requests",retryAfter:rl.retry,requestId:rid},429);}
     return adminSummary(env,req);
   }
   const m=req.method, b=m==="POST"?await readBody(req):{};
+  if(p==="analytics"&&m==="POST"){
+    const rl=rateLimit("analytics:"+clientIp(req),30,60000);
+    if(!rl.ok){const rid=requestId();await recordObs(env,{kind:"rate_limited",route:"/api/analytics",status:429,requestId:rid,message:"Analytics rate limit"});return json({error:"Too many analytics events",retryAfter:rl.retry,requestId:rid},429);}
+    return analyticsEvent(env,req,b);
+  }
   const publicRl=rateLimit("api:"+clientIp(req)+":"+p.split("/")[0],60,60000);
-  if(!publicRl.ok)err("Too many requests. Please try again shortly.",429);
+  if(!publicRl.ok){const rid=requestId();await recordObs(env,{kind:"rate_limited",route:"/api/"+p,status:429,requestId:rid,message:"API rate limit"});return json({error:"Too many requests. Please try again shortly.",requestId:rid},429);}
   if(p==="guest"&&m==="POST"){
     if(env.REQUIRE_SIGNIN==="true")err("Sign in required",403);
     if(!guestOk(req.headers.get("CF-Connecting-IP")||"?"))err("Too many new accounts from this network. Try again later.",429);
@@ -184,6 +279,9 @@ async function api(env,req,p,url){
   }
   const {u}=await getUser(env,req);
   if(p==="profile"&&m==="POST"){const nm=String(b.name||"").trim().slice(0,40);if(!nm)err("Enter a name");await env.DB.prepare("UPDATE users SET name=? WHERE id=?").bind(nm,u.id).run();await notify(env,u.id,"profile","Your display name is now "+nm+".");return json({ok:true,name:nm});}
+  if(p==="privacy/export"&&m==="GET")return privacyExport(env,req,u);
+  if(p==="privacy/location/delete"&&m==="POST")return privacyLocationDelete(env,req,u);
+  if(p==="privacy/delete"&&m==="POST")return privacyDelete(env,req,u,b);
   if(p==="notifications"&&m==="GET"){const r=await env.DB.prepare("SELECT id,kind,text,ref,at,read FROM notifications WHERE uid=? ORDER BY at DESC LIMIT 100").bind(u.id).all();const c=await env.DB.prepare("SELECT COUNT(*) c FROM notifications WHERE uid=? AND read=0").bind(u.id).first();return json({items:r.results||[],unread:(c&&c.c)||0});}
   if(p==="notifications/read"&&m==="POST"){await env.DB.prepare("UPDATE notifications SET read=1 WHERE uid=? AND read=0").bind(u.id).run();return json({ok:true});}
   if(p==="me")return json(pubU(u));
@@ -199,7 +297,7 @@ async function api(env,req,p,url){
     const R=Math.min(+url.searchParams.get("r")||3,10), now=Date.now();
     const mine=await env.DB.prepare("SELECT id,type,amount,exp,status FROM listings WHERE uid=? AND status='open' AND exp>? ORDER BY exp").bind(u.id,now).all();
     if(u.lat==null)return json({items:[],mine:mine.results||[]});
-    const rows=await env.DB.prepare("SELECT l.*,u.name,u.done,u.lat,u.lng FROM listings l JOIN users u ON u.id=l.uid WHERE l.status='open' AND l.exp>? AND l.uid<>?").bind(now,u.id).all();
+    const rows=await env.DB.prepare("SELECT l.*,u.name,u.done,u.lat,u.lng FROM listings l JOIN users u ON u.id=l.uid WHERE l.status='open' AND l.exp>? AND l.uid<>? LIMIT 500").bind(now,u.id).all();
     const items=[]; for(const l of rows.results||[]){if(l.lat==null||await blocked(env,u.id,l.uid))continue;const d=dist(u,l);if(d<=R)items.push({id:l.id,type:l.type,amount:l.amount,mins:Math.ceil((l.exp-now)/60000),km:Math.max(.01,Math.round(d*100)/100),brg:Math.round(bearing(u,l)),name:l.name,done:l.done||0});}
     items.sort((a,b)=>a.km-b.km);return json({items,mine:mine.results||[]});
   }
@@ -223,7 +321,7 @@ async function api(env,req,p,url){
     const own=await env.DB.prepare("SELECT name FROM users WHERE id=?").bind(l.uid).first();await notify(env,l.uid,"connect",u.name+(l.type==="have"?" requested your ₹":" offered cash for your ₹")+l.amount+(l.type==="have"?" cash. Open the chat to coordinate.":" request. Open the chat to coordinate."),t.id);await notify(env,u.id,"connect","You connected with "+(own&&own.name||"a user")+" for ₹"+l.amount+".",t.id);await broadcastListings(env);await push(env,l.uid,{t:"thread"});return json({id:t.id});
   }
   if(p==="threads"){
-    const rows=await env.DB.prepare("SELECT t.*, ua.id a_id,ua.name a_name,ua.done a_done, ub.id b_id,ub.name b_name,ub.done b_done, (SELECT text FROM messages m WHERE m.tid=t.id ORDER BY m.at DESC LIMIT 1) last FROM threads t JOIN users ua ON ua.id=t.a JOIN users ub ON ub.id=t.b WHERE t.a=? OR t.b=? ORDER BY t.created DESC").bind(u.id,u.id).all();
+    const rows=await env.DB.prepare("SELECT t.*, ua.id a_id,ua.name a_name,ua.done a_done, ub.id b_id,ub.name b_name,ub.done b_done, (SELECT text FROM messages m WHERE m.tid=t.id ORDER BY m.at DESC LIMIT 1) last FROM threads t JOIN users ua ON ua.id=t.a JOIN users ub ON ub.id=t.b WHERE t.a=? OR t.b=? ORDER BY t.created DESC LIMIT 100").bind(u.id,u.id).all();
     return json({items:(rows.results||[]).map(t=>({id:t.id,amount:t.amount,status:t.status,other:{id:t.a===u.id?t.b_id:t.a_id,name:t.a===u.id?t.b_name:t.a_name,done:t.a===u.id?t.b_done:t.a_done},last:t.last?t.last.slice(0,60):""}))});
   }
   const P=p.split('/');
@@ -328,4 +426,4 @@ export class UserStream extends DurableObject {
     return new Response("Not found",{status:404});
   }
 }
-export default {async fetch(req,env){const url=new URL(req.url);if(url.pathname==="/healthz"){let db=false,schema=false,error=null;try{await ensureSchema(env);db=true;schema=!!await env.DB.prepare("SELECT name FROM sqlite_master WHERE name='otps'").first();}catch(e){error=String(e&&e.message||e).slice(0,160);}return json({ok:db&&schema,v:10,db,schema,devOtp:env.DEV_OTP==="true",error});}if(url.pathname.startsWith("/api/")){try{await ensureSchema(env);return await api(env,req,url.pathname.slice(5),url);}catch(e){if(!e.status)console.error("Worker error:",e&&e.stack||e);return json({error:e.status?e.message:"Server error",requestId:crypto.randomUUID()},e.status||500);}}const res=await env.ASSETS.fetch(req);const headers=new Headers(res.headers);for(const [k,v] of Object.entries(securityHeaders)){if(!headers.has(k))headers.set(k,v);}return new Response(res.body,{status:res.status,statusText:res.statusText,headers});}};
+export default {async fetch(req,env){const url=new URL(req.url);if(url.pathname==="/healthz"){let db=false,schema=false,error=null;const rid=requestId();try{await ensureSchema(env);db=true;schema=!!await env.DB.prepare("SELECT name FROM sqlite_master WHERE name='otps'").first();}catch(e){error=String(e&&e.message||e).slice(0,160);await recordObs(env,{kind:"health_failure",route:"/healthz",status:503,requestId:rid,message:error});}return json({ok:db&&schema,v:12,db,schema,devOtp:env.DEV_OTP==="true",error,requestId:rid});}if(url.pathname.startsWith("/api/")){const rid=requestId();try{await ensureSchema(env);return await api(env,req,url.pathname.slice(5),url);}catch(e){const status=Number(e&&e.status)||500;if(!e.status){console.error("Worker error:",e&&e.stack||e);await recordObs(env,{kind:"server_error",route:url.pathname,status,requestId:rid,message:e&&e.message||"Unhandled server error"});}return json({error:e.status?e.message:"Server error",requestId:rid},status);}}const res=await env.ASSETS.fetch(req);const headers=new Headers(res.headers);for(const [k,v] of Object.entries(securityHeaders)){if(!headers.has(k))headers.set(k,v);}if(res.ok&&url.pathname!=="/"&&url.pathname!=="/index.html"){headers.set("Cache-Control","public, max-age=300, stale-while-revalidate=86400");}else{headers.set("Cache-Control","no-cache");}headers.set("X-Content-Type-Options","nosniff");return new Response(res.body,{status:res.status,statusText:res.statusText,headers});}};
