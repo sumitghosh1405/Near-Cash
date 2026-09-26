@@ -97,3 +97,33 @@ CREATE TABLE IF NOT EXISTS notifications (
   FOREIGN KEY(uid) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_notifications_uid ON notifications(uid, at);
+
+CREATE TABLE IF NOT EXISTS observability_events (
+  id TEXT PRIMARY KEY,
+  at INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  route TEXT NOT NULL,
+  status INTEGER NOT NULL,
+  request_id TEXT NOT NULL,
+  message TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_observability_at ON observability_events(at);
+CREATE INDEX IF NOT EXISTS idx_observability_kind_at ON observability_events(kind, at);
+
+
+CREATE TABLE IF NOT EXISTS analytics_events (
+  id TEXT PRIMARY KEY,
+  at INTEGER NOT NULL,
+  event TEXT NOT NULL,
+  client_id TEXT NOT NULL,
+  screen TEXT,
+  meta_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_analytics_at ON analytics_events(at);
+CREATE INDEX IF NOT EXISTS idx_analytics_event_at ON analytics_events(event, at);
+
+CREATE INDEX IF NOT EXISTS idx_users_at ON users(at);
+CREATE INDEX IF NOT EXISTS idx_listings_exp_status ON listings(status, exp);
+CREATE INDEX IF NOT EXISTS idx_threads_status_created ON threads(status, created);
+CREATE INDEX IF NOT EXISTS idx_notifications_uid_read_at ON notifications(uid, read, at);
+CREATE INDEX IF NOT EXISTS idx_reports_by_tid_at ON reports(by_uid, tid, at);

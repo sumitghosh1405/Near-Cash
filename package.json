@@ -1,1 +1,1 @@
-{"name":"near-cash-cloudflare","private":true,"version":"1.0.0","scripts":{"deploy":"wrangler deploy","dev":"wrangler dev"},"devDependencies":{"wrangler":"^4.40.0"}}
+{"name":"near-cash-cloudflare","private":true,"version":"1.0.0-all-upgrades-qa","scripts":{"deploy":"wrangler deploy","dev":"wrangler dev","check":"node --check src/index.js && node --check public/app.js && node --check public/live.js && node --check public/sw.js && node --test tests/qa.test.mjs","test":"node --test tests/qa.test.mjs"},"devDependencies":{"wrangler":"^4.40.0"}}
