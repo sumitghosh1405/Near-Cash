@@ -39,19 +39,28 @@ const adminJson = (o,status=200) => json(o,status,ADMIN_CORS);
 const getAdminAnalyticsKey = (env) => {
   // Primary production secret. The aliases keep older Cloudflare deployments compatible
   // if the secret was accidentally created under one of the legacy names.
+  // Reflect.get is used instead of plain env[name] bracket access: Cloudflare's Workers
+  // runtime implements `env` via an internal Proxy, and there is a documented class of bug
+  // where the Proxy's get trap can return undefined for a binding that genuinely exists —
+  // Reflect.get bypasses that and is the known workaround.
   const names = ["ADMIN_ANALYTICS_KEY", "ADMIN_ANALYTICS_K", "ADMIN_KEY"];
   for (const name of names) {
-    const value = String(env[name] || "").trim();
+    let raw;
+    try { raw = Reflect.get(env, name); } catch { raw = env[name]; }
+    const value = String(raw || "").trim();
     if (value) return {value, name};
   }
   return {value:"", name:null};
 };
 // Diagnostic only: lists env binding *names* (never values) that look admin/analytics-related.
 // This is what lets you see a typo'd, mis-cased, or missing secret from /api/admin/status
-// without ever exposing the secret itself.
+// without ever exposing the secret itself. Reflect.ownKeys is used for the same Proxy-safety
+// reason as above — Object.keys can miss properties that a plain enumeration trap hides.
 const adminEnvHints = (env) => {
-  try { return Object.keys(env||{}).filter(k=>/ADMIN|ANALYTICS/i.test(k)).sort(); }
-  catch { return []; }
+  try {
+    const keys = new Set([...Object.keys(env||{}), ...Reflect.ownKeys(env||{}).filter(k=>typeof k==="string")]);
+    return {matches:[...keys].filter(k=>/ADMIN|ANALYTICS/i.test(k)).sort(), totalBindings:keys.size};
+  } catch { return {matches:[], totalBindings:0}; }
 };
 async function adminSummary(env,req){
   if(req.method === "OPTIONS") return new Response(null,{status:204,headers:ADMIN_CORS});
@@ -59,8 +68,8 @@ async function adminSummary(env,req){
   const configured = getAdminAnalyticsKey(env);
   if(!configured.value){
     const hints=adminEnvHints(env);
-    const extra=hints.length?` Found these admin-related bindings instead: ${hints.join(", ")}.`:" No admin-related bindings were found on this Worker at all.";
-    return adminJson({error:"Admin analytics is not configured. Add the Production secret ADMIN_ANALYTICS_KEY to the near-cash Worker, then redeploy."+extra,expectedNames:["ADMIN_ANALYTICS_KEY","ADMIN_ANALYTICS_K","ADMIN_KEY"],presentAdminBindings:hints},503);
+    const extra=hints.matches.length?` Found these admin-related bindings instead: ${hints.matches.join(", ")}.`:` No admin-related bindings were found on this Worker (it has ${hints.totalBindings} binding(s) total).`;
+    return adminJson({error:"Admin analytics is not configured. Add the Production secret ADMIN_ANALYTICS_KEY to the near-cash Worker, then redeploy."+extra,expectedNames:["ADMIN_ANALYTICS_KEY","ADMIN_ANALYTICS_K","ADMIN_KEY"],presentAdminBindings:hints.matches,totalBindings:hints.totalBindings},503);
   }
   const supplied = String(req.headers.get("X-Admin-Key") || "");
   if(!supplied) return adminJson({error:"Admin key required"},401);
@@ -103,7 +112,8 @@ async function api(env,req,p,url){
     if(req.method === "OPTIONS") return new Response(null,{status:204,headers:ADMIN_CORS});
     if(req.method !== "GET") return adminJson({error:"Method not allowed"},405);
     const configured = getAdminAnalyticsKey(env);
-    return adminJson({ok:true,configured:!!configured.value,source:configured.name||null,expectedNames:["ADMIN_ANALYTICS_KEY","ADMIN_ANALYTICS_K","ADMIN_KEY"],presentAdminBindings:adminEnvHints(env)});
+    const hints = adminEnvHints(env);
+    return adminJson({ok:true,configured:!!configured.value,source:configured.name||null,expectedNames:["ADMIN_ANALYTICS_KEY","ADMIN_ANALYTICS_K","ADMIN_KEY"],presentAdminBindings:hints.matches,totalBindings:hints.totalBindings});
   }
   if(p==="admin/summary") return adminSummary(env,req);
   const m=req.method, b=m==="POST"?await readBody(req):{};
